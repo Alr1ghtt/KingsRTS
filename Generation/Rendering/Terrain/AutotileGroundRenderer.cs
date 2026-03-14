@@ -6,9 +6,14 @@ public class AutotileGroundRenderer : MonoBehaviour
     [SerializeField] private TilemapLayerSystem _layers;
 
     [SerializeField] private TileBase _centerTile;
-    [SerializeField] private TileBase _edgeTile;
-    [SerializeField] private TileBase _cornerTile;
-    [SerializeField] private TileBase _singleTile;
+    [SerializeField] private TileBase _topTile;
+    [SerializeField] private TileBase _bottomTile;
+    [SerializeField] private TileBase _leftTile;
+    [SerializeField] private TileBase _rightTile;
+    [SerializeField] private TileBase _topLeftTile;
+    [SerializeField] private TileBase _topRightTile;
+    [SerializeField] private TileBase _bottomLeftTile;
+    [SerializeField] private TileBase _bottomRightTile;
 
     private TerrainAutotiler _autotiler = new();
 
@@ -25,7 +30,7 @@ public class AutotileGroundRenderer : MonoBehaviour
 
                 Tilemap layer = _layers.GetGroundLayer(tile.Height);
 
-                TerrainTileType type = _autotiler.Resolve(map, x, y);
+                GrassTileType type = _autotiler.Resolve(map, x, y);
 
                 TileBase tileBase = GetTile(type);
 
@@ -34,14 +39,19 @@ public class AutotileGroundRenderer : MonoBehaviour
         }
     }
 
-    private TileBase GetTile(TerrainTileType type)
+    private TileBase GetTile(GrassTileType type)
     {
         switch (type)
         {
-            case TerrainTileType.Center: return _centerTile;
-            case TerrainTileType.Edge: return _edgeTile;
-            case TerrainTileType.Corner: return _cornerTile;
-            default: return _singleTile;
+            case GrassTileType.Top: return _topTile;
+            case GrassTileType.Bottom: return _bottomTile;
+            case GrassTileType.Left: return _leftTile;
+            case GrassTileType.Right: return _rightTile;
+            case GrassTileType.TopLeft: return _topLeftTile;
+            case GrassTileType.TopRight: return _topRightTile;
+            case GrassTileType.BottomLeft: return _bottomLeftTile;
+            case GrassTileType.BottomRight: return _bottomRightTile;
+            default: return _centerTile;
         }
     }
 }

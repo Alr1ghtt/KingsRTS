@@ -8,17 +8,18 @@ public class ArenaGenerator : MonoBehaviour, ITerrainGenerationStrategy
     {
         TerrainMask mask = new TerrainMask(width, height);
 
-        int cx = width / 2;
-        int cy = height / 2;
+        Vector2 center = new Vector2(width / 2f, height / 2f);
 
         for (int x = 0; x < width; x++)
+        {
             for (int y = 0; y < height; y++)
             {
-                float dist = Vector2.Distance(new Vector2(x, y), new Vector2(cx, cy));
+                float dist = Vector2.Distance(new Vector2(x, y), center);
 
-                if (dist < _radius)
+                if (dist <= _radius)
                     mask.Set(x, y, true);
             }
+        }
 
         return mask;
     }

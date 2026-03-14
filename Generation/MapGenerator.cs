@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class MapGenerator : MonoBehaviour
 {
-    [SerializeField] private MapDebugRenderer _debugRenderer;
+    [SerializeField] private TerrainTilemapRenderer _renderer;
     [SerializeField] private MapGenerationConfig _config;
 
     [Header("Terrain Strategy")]
@@ -13,26 +13,31 @@ public class MapGenerator : MonoBehaviour
     [Header("Systems")]
     [SerializeField] private CliffDetector _cliffDetector;
     [SerializeField] private RampGenerator _rampGenerator;
-    [SerializeField] private TerrainDecorationRenderer _decorationRenderer;
+
+    [SerializeField] private TilemapLayerSystem _layers;
 
     private MapGenerationPipeline _pipeline;
 
-    private void Awake()
-    {
-        _terrainStrategy = _terrainStrategyComponent as ITerrainGenerationStrategy;
-    }
-
     public void Generate()
     {
+        if (_terrainStrategyComponent is ITerrainGenerationStrategy strategy)
+            _terrainStrategy = strategy;
+        else
+        {
+            Debug.LogError("Terrain strategy not initialized");
+            return;
+        }
+
+        if (_layers != null)
+            _layers.ClearAll();
+
         MapData map = new MapData(_config.Width, _config.Height);
 
         BuildPipeline();
 
         _pipeline.Execute(map, _config);
 
-        _pipeline.Execute(map, _config);
-
-        _debugRenderer.Render(map);
+        _renderer.Render(map);
     }
 
     private void BuildPipeline()
@@ -43,7 +48,5 @@ public class MapGenerator : MonoBehaviour
         _pipeline.AddStep(new HeightGenerationStep());
         _pipeline.AddStep(new CliffDetectionStep(_cliffDetector));
         _pipeline.AddStep(new RampGenerationStep(_rampGenerator));
-        _pipeline.AddStep(new DecorationStep(_decorationRenderer));
-
     }
 }

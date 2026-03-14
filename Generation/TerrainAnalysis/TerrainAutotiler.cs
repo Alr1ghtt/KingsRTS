@@ -2,34 +2,35 @@ using UnityEngine;
 
 public class TerrainAutotiler
 {
-    public TerrainTileType Resolve(MapData map, int x, int y)
+    public GrassTileType Resolve(MapData map, int x, int y)
     {
+        int height = map.GetTile(x, y).Height;
+
+        bool n = Solid(map, x, y + 1, height);
+        bool s = Solid(map, x, y - 1, height);
+        bool e = Solid(map, x + 1, y, height);
+        bool w = Solid(map, x - 1, y, height);
+
+        if (!n && w && e) return GrassTileType.Top;
+        if (!s && w && e) return GrassTileType.Bottom;
+        if (!w && n && s) return GrassTileType.Left;
+        if (!e && n && s) return GrassTileType.Right;
+
+        if (!n && !w) return GrassTileType.TopLeft;
+        if (!n && !e) return GrassTileType.TopRight;
+        if (!s && !w) return GrassTileType.BottomLeft;
+        if (!s && !e) return GrassTileType.BottomRight;
+
+        return GrassTileType.Center;
+    }
+
+    bool Solid(MapData map, int x, int y, int height)
+    {
+        if (!map.IsInside(x, y))
+            return false;
+
         MapTile tile = map.GetTile(x, y);
 
-        if (!tile.IsLand)
-            return TerrainTileType.Single;
-
-        bool n = map.IsInside(x, y + 1) && map.GetTile(x, y + 1).IsLand;
-        bool s = map.IsInside(x, y - 1) && map.GetTile(x, y - 1).IsLand;
-        bool e = map.IsInside(x + 1, y) && map.GetTile(x + 1, y).IsLand;
-        bool w = map.IsInside(x - 1, y) && map.GetTile(x - 1, y).IsLand;
-
-        int count = 0;
-
-        if (n) count++;
-        if (s) count++;
-        if (e) count++;
-        if (w) count++;
-
-        if (count == 4)
-            return TerrainTileType.Center;
-
-        if (count >= 2)
-            return TerrainTileType.Edge;
-
-        if (count == 1)
-            return TerrainTileType.Corner;
-
-        return TerrainTileType.Single;
+        return tile.IsLand && tile.Height == height;
     }
 }

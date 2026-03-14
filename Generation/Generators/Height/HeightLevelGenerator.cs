@@ -35,7 +35,11 @@ public class HeightLevelGenerator
 
                 float noise = Mathf.PerlinNoise(nx, ny);
 
-                tile.Height = Mathf.FloorToInt(noise * _maxHeight);
+                tile.Height = Mathf.Clamp(
+                Mathf.FloorToInt(noise * _maxHeight) + 1,
+                0,
+                _maxHeight
+                );
             }
         }
     }

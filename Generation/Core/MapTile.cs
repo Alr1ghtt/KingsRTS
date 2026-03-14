@@ -15,7 +15,6 @@ public class MapTile
     public MapTile(Vector2Int position, bool isLand)
     {
         Position = position;
-
         IsLand = isLand;
 
         Height = 0;

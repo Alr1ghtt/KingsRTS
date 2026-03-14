@@ -17,7 +17,12 @@ public class CliffRenderer : MonoBehaviour
                 if (tile.Type != TileType.Cliff)
                     continue;
 
-                _layers.CliffLayer.SetTile(
+                Tilemap cliffLayer = _layers.GetCliffLayer(tile.Height);
+
+                if (cliffLayer == null)
+                    continue;
+
+                cliffLayer.SetTile(
                     new Vector3Int(x, y, 0),
                     _cliffTile
                 );

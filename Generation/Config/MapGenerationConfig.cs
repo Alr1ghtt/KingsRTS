@@ -11,7 +11,9 @@ public class MapGenerationConfig : ScriptableObject
     [Header("Height")]
     [SerializeField] private int _levels = 3;
     [SerializeField] private float _heightNoiseScale = 0.05f;
-    
+
+    [SerializeField] private int _waterBorder = 40;
+    public int WaterBorder => _waterBorder;
     public int Width => _width;
     public int Height => _height;
     public int Seed => _seed;
