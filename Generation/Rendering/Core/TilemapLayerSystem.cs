@@ -5,6 +5,9 @@ public class TilemapLayerSystem : MonoBehaviour
 {
     [SerializeField] private Tilemap _water;
 
+    [SerializeField] private Tilemap _baseCliff;
+    public Tilemap BaseCliff => _baseCliff;
+
     [Header("Ground")]
     [SerializeField] private Tilemap[] _groundLayers;
 
@@ -15,6 +18,8 @@ public class TilemapLayerSystem : MonoBehaviour
     [SerializeField] private Tilemap[] _shadowLayers;
 
     [SerializeField] private Tilemap _foam;
+
+
 
     public Tilemap Water => _water;
     public Tilemap Foam => _foam;

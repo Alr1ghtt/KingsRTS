@@ -14,5 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MapGenerationConfig
   _width: 128
   _height: 128
-  _heightScale: 10
-  _seed: 12345
+  _seed: 676
+  _heightNoiseScale: 0.05
+  _waterBorder: 40
+  _levels: 3

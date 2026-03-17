@@ -11,6 +11,23 @@ public class TerrainAutotiler
         bool e = Solid(map, x + 1, y, height);
         bool w = Solid(map, x - 1, y, height);
 
+        int count =
+            (n ? 1 : 0) +
+            (s ? 1 : 0) +
+            (e ? 1 : 0) +
+            (w ? 1 : 0);
+
+        if (count == 0)
+            return GrassTileType.Single;
+
+        if (count == 1)
+        {
+            if (n) return GrassTileType.TripleBottom;
+            if (s) return GrassTileType.TripleTop;
+            if (e) return GrassTileType.TripleLeft;
+            if (w) return GrassTileType.TripleRight;
+        }
+
         if (!n && w && e) return GrassTileType.Top;
         if (!s && w && e) return GrassTileType.Bottom;
         if (!w && n && s) return GrassTileType.Left;
