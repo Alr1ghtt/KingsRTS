@@ -10,13 +10,11 @@ public class MapGenerator : MonoBehaviour
 
     private ITerrainGenerationStrategy _terrainStrategy;
 
-    [Header("Systems")]
-    [SerializeField] private CliffDetector _cliffDetector;
-    [SerializeField] private RampGenerator _rampGenerator;
-
     [SerializeField] private TilemapLayerSystem _layers;
 
     private MapGenerationPipeline _pipeline;
+
+    private StartPositionGenerator _startGenerator = new();
 
     public void Generate()
     {
@@ -37,6 +35,8 @@ public class MapGenerator : MonoBehaviour
 
         _pipeline.Execute(map, _config);
 
+        _startGenerator.Generate(map, _config);
+
         _renderer.Render(map);
     }
 
@@ -46,7 +46,7 @@ public class MapGenerator : MonoBehaviour
 
         _pipeline.AddStep(new TerrainGenerationStep(_terrainStrategy));
         _pipeline.AddStep(new HeightGenerationStep());
-        _pipeline.AddStep(new CliffDetectionStep(_cliffDetector));
-        _pipeline.AddStep(new RampGenerationStep(_rampGenerator));
+        _pipeline.AddStep(new CliffDetectionStep());
+        _pipeline.AddStep(new RampGenerationStep());
     }
 }

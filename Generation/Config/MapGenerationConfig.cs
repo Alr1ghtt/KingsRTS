@@ -14,7 +14,13 @@ public class MapGenerationConfig : ScriptableObject
     [Header("Height")]
     [Range(2, 5)]
     [SerializeField] private int _levels = 3;
-    
+
+    [Header("Players")]
+    [Range(1, 5)]
+    [SerializeField] private int _playerCount = 2;
+
+    [SerializeField] private int _baseRadius = 6;
+
     public int WaterBorder => _waterBorder;
     public int Width => _width;
     public int Height => _height;
@@ -22,4 +28,7 @@ public class MapGenerationConfig : ScriptableObject
 
     public int Levels => _levels;
     public float HeightNoiseScale => _heightNoiseScale;
+
+    public int PlayerCount => _playerCount;
+    public int BaseRadius => _baseRadius;
 }

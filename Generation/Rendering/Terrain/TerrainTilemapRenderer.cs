@@ -26,6 +26,12 @@ public class TerrainTilemapRenderer : MonoBehaviour
     [Header("Shadow")]
     [SerializeField] private TileBase _shadowTile;
 
+    [Header("Ramp")]
+    [SerializeField] private TileBase _rampBottomEast;
+    [SerializeField] private TileBase _rampTopEast;
+    [SerializeField] private TileBase _rampBottomWest;
+    [SerializeField] private TileBase _rampTopWest;
+
     [Header("Grass")]
     [SerializeField] private TileBase _center;
     [SerializeField] private TileBase _top;
@@ -66,8 +72,7 @@ public class TerrainTilemapRenderer : MonoBehaviour
     [Header("Water Single")]
     [SerializeField] private TileBase _w_single;
 
-
-    TerrainAutotiler autotiler = new();
+    private TerrainAutotiler autotiler = new();
 
     public void Render(MapData map)
     {
@@ -84,9 +89,38 @@ public class TerrainTilemapRenderer : MonoBehaviour
 
                 RenderBaseCliff(map, x, y);
                 RenderGrass(map, x, y);
+                RenderRamp(map, tile, x, y);
             }
         }
     }
+
+    void RenderRamp(MapData map, MapTile tile, int x, int y)
+    {
+        if (tile.Type != TileType.Ramp)
+            return;
+
+        bool isTopPart = false;
+
+        if (map.IsInside(x, y - 1))
+        {
+            var below = map.GetTile(x, y - 1);
+            if (below != null && below.Type == TileType.Ramp)
+                isTopPart = true;
+        }
+
+        TileBase t;
+
+        if (tile.RampDirection == RampDirection.East)
+            t = isTopPart ? _rampTopEast : _rampBottomEast;
+        else
+            t = isTopPart ? _rampTopWest : _rampBottomWest;
+
+        int level = tile.Height;
+        var cliffLayer = _layers.GetCliffLayer(level);
+
+        cliffLayer.SetTile(new Vector3Int(x, y, 0), t);
+    }
+
     void RenderBaseCliff(MapData map, int x, int y)
     {
         var tile = map.GetTile(x, y);
@@ -94,10 +128,9 @@ public class TerrainTilemapRenderer : MonoBehaviour
         if (!tile.IsLand)
             return;
 
-        var layer = _layers.BaseCliff;
-
-        layer.SetTile(new Vector3Int(x, y, 0), _cliffCenter);
+        _layers.BaseCliff.SetTile(new Vector3Int(x, y, 0), _cliffCenter);
     }
+
     void FillWater(MapData map)
     {
         int border = _config.WaterBorder;
@@ -110,16 +143,42 @@ public class TerrainTilemapRenderer : MonoBehaviour
             }
         }
     }
+    bool IsIsolated(MapData map, int x, int y)
+    {
+        int h = map.GetTile(x, y).Height;
 
+        return IsLower(map, x + 1, y, h) &&
+               IsLower(map, x - 1, y, h) &&
+               IsLower(map, x, y + 1, h) &&
+               IsLower(map, x, y - 1, h);
+    }
+
+    bool IsLower(MapData map, int x, int y, int h)
+    {
+        if (!map.IsInside(x, y))
+            return true;
+
+        var t = map.GetTile(x, y);
+
+        if (t == null)
+            return true;
+
+        return t.Height < h;
+    }
     void RenderGrass(MapData map, int x, int y)
     {
         var tile = map.GetTile(x, y);
+
+        if (tile.Type == TileType.Ramp)
+            return;
+
         var layer = _layers.GetGroundLayer(tile.Height);
 
         var type = autotiler.Resolve(map, x, y);
 
-        bool isEdge = HasWaterNeighbor(map, x, y);
-        bool useWater = tile.Height == 1 && isEdge;
+        type = AdjustForRamp(map, x, y, type);
+
+        bool useWater = tile.Height == 1 && HasWaterNeighbor(map, x, y);
 
         TileBase t = GetTile(type, useWater);
 
@@ -132,9 +191,7 @@ public class TerrainTilemapRenderer : MonoBehaviour
         else
         {
             if (HasWaterNeighbor(map, x, y))
-            {
                 _layers.Foam.SetTile(new Vector3Int(x, y, 0), _foamTile);
-            }
         }
     }
 
@@ -148,19 +205,15 @@ public class TerrainTilemapRenderer : MonoBehaviour
                 GrassTileType.Bottom => _w_bottom,
                 GrassTileType.Left => _w_left,
                 GrassTileType.Right => _w_right,
-
                 GrassTileType.TopLeft => _w_topLeft,
                 GrassTileType.TopRight => _w_topRight,
                 GrassTileType.BottomLeft => _w_bottomLeft,
                 GrassTileType.BottomRight => _w_bottomRight,
-
                 GrassTileType.TripleTop => _w_tripleTop,
                 GrassTileType.TripleBottom => _w_tripleBottom,
                 GrassTileType.TripleLeft => _w_tripleLeft,
                 GrassTileType.TripleRight => _w_tripleRight,
-
                 GrassTileType.Single => _w_single,
-
                 _ => _w_center
             };
         }
@@ -171,57 +224,86 @@ public class TerrainTilemapRenderer : MonoBehaviour
             GrassTileType.Bottom => _bottom,
             GrassTileType.Left => _left,
             GrassTileType.Right => _right,
-
             GrassTileType.TopLeft => _topLeft,
             GrassTileType.TopRight => _topRight,
             GrassTileType.BottomLeft => _bottomLeft,
             GrassTileType.BottomRight => _bottomRight,
-
             GrassTileType.TripleTop => _tripleTop,
             GrassTileType.TripleBottom => _tripleBottom,
             GrassTileType.TripleLeft => _tripleLeft,
             GrassTileType.TripleRight => _tripleRight,
-
             GrassTileType.Single => _single,
-
             _ => _center
         };
     }
-    TileBase ResolveCliffTile(MapData map, int x, int y, GrassTileType type, int level, bool waterVariant)
+
+    bool HasWaterNeighbor(MapData map, int x, int y)
     {
-        int height = map.GetTile(x, y).Height;
+        var tile = map.GetTile(x, y);
+        int h = tile.Height;
 
-        bool leftSolid = map.IsInside(x - 1, y) &&
-                         map.GetTile(x - 1, y).Height >= height;
-
-        bool rightSolid = map.IsInside(x + 1, y) &&
-                          map.GetTile(x + 1, y).Height >= height;
-
-        if (type == GrassTileType.TripleBottom)
-            return _cliffSingle;
-
-
-        if (type == GrassTileType.TripleRight)
-            return waterVariant ? _waterCliffRight : _cliffRight;
-
-        if (type == GrassTileType.TripleLeft)
-            return waterVariant ? _waterCliffLeft : _cliffLeft;
-
-
-        if (!leftSolid && !rightSolid)
-            return _cliffSingle;
-
-        if (!leftSolid)
-            return waterVariant ? _waterCliffLeft : _cliffLeft;
-
-        if (!rightSolid)
-            return waterVariant ? _waterCliffRight : _cliffRight;
-
-        return waterVariant ? _waterCliffCenter : _cliffCenter;
+        return IsWaterStrict(map, x + 1, y, h) ||
+               IsWaterStrict(map, x - 1, y, h) ||
+               IsWaterStrict(map, x, y + 1, h) ||
+               IsWaterStrict(map, x, y - 1, h);
     }
+
+    bool IsWaterStrict(MapData map, int x, int y, int h)
+    {
+        if (!map.IsInside(x, y))
+            return false;
+
+        var t = map.GetTile(x, y);
+
+        if (t == null)
+            return false;
+
+        return !t.IsLand && t.Height < h;
+    }
+    bool IsRamp(MapData map, int x, int y)
+    {
+        if (!map.IsInside(x, y))
+            return false;
+
+        var t = map.GetTile(x, y);
+        return t != null && t.Type == TileType.Ramp;
+    }
+    GrassTileType AdjustForRamp(MapData map, int x, int y, GrassTileType original)
+    {
+        bool leftRamp = IsRamp(map, x - 1, y);
+        bool rightRamp = IsRamp(map, x + 1, y);
+        bool downRamp = IsRamp(map, x, y - 1);
+
+        if (downRamp)
+        {
+            if (leftRamp) return GrassTileType.BottomLeft;
+            if (rightRamp) return GrassTileType.BottomRight;
+            return GrassTileType.Bottom;
+        }
+
+        return original;
+    }
+    bool IsWater(MapData map, int x, int y)
+    {
+        if (!map.IsInside(x, y))
+            return false;
+
+        var t = map.GetTile(x, y);
+
+        if (t == null)
+            return false;
+
+        return !t.IsLand;
+    }
+
     void HandleVerticalCliff(MapData map, int x, int y, GrassTileType type)
     {
-        int startHeight = map.GetTile(x, y).Height;
+        var sourceTile = map.GetTile(x, y);
+
+        if (sourceTile.Type == TileType.Ramp)
+            return;
+
+        int startHeight = sourceTile.Height;
 
         bool allowWaterCliff = startHeight >= 2;
 
@@ -263,19 +345,34 @@ public class TerrainTilemapRenderer : MonoBehaviour
         }
     }
 
-    bool HasWaterNeighbor(MapData map, int x, int y)
+    TileBase ResolveCliffTile(MapData map, int x, int y, GrassTileType type, int level, bool waterVariant)
     {
-        return IsWater(map, x + 1, y) ||
-               IsWater(map, x - 1, y) ||
-               IsWater(map, x, y + 1) ||
-               IsWater(map, x, y - 1);
-    }
+        int height = map.GetTile(x, y).Height;
 
-    bool IsWater(MapData map, int x, int y)
-    {
-        if (!map.IsInside(x, y))
-            return true;
+        bool leftSolid = map.IsInside(x - 1, y) &&
+                         map.GetTile(x - 1, y).Height >= height;
 
-        return map.GetTile(x, y).Height == 0;
+        bool rightSolid = map.IsInside(x + 1, y) &&
+                          map.GetTile(x + 1, y).Height >= height;
+
+        if (type == GrassTileType.TripleBottom)
+            return _cliffSingle;
+
+        if (type == GrassTileType.TripleRight)
+            return waterVariant ? _waterCliffRight : _cliffRight;
+
+        if (type == GrassTileType.TripleLeft)
+            return waterVariant ? _waterCliffLeft : _cliffLeft;
+
+        if (!leftSolid && !rightSolid)
+            return _cliffSingle;
+
+        if (!leftSolid)
+            return waterVariant ? _waterCliffLeft : _cliffLeft;
+
+        if (!rightSolid)
+            return waterVariant ? _waterCliffRight : _cliffRight;
+
+        return waterVariant ? _waterCliffCenter : _cliffCenter;
     }
 }

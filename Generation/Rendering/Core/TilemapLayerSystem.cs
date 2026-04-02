@@ -19,8 +19,6 @@ public class TilemapLayerSystem : MonoBehaviour
 
     [SerializeField] private Tilemap _foam;
 
-
-
     public Tilemap Water => _water;
     public Tilemap Foam => _foam;
 
@@ -58,6 +56,7 @@ public class TilemapLayerSystem : MonoBehaviour
     {
         if (_water) _water.ClearAllTiles();
         if (_foam) _foam.ClearAllTiles();
+        if (_baseCliff) _baseCliff.ClearAllTiles();
 
         foreach (var g in _groundLayers)
             if (g) g.ClearAllTiles();

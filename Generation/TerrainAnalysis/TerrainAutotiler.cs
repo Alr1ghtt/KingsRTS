@@ -2,6 +2,27 @@ using UnityEngine;
 
 public class TerrainAutotiler
 {
+    bool Solid(MapData map, int x, int y, int height)
+    {
+        if (!map.IsInside(x, y))
+            return false;
+
+        var tile = map.GetTile(x, y);
+
+        if (tile == null)
+            return false;
+
+        if (!tile.IsLand)
+            return false;
+
+        if (tile.Height == 0)
+            return false;
+
+        if (tile.Type == TileType.Ramp)
+            return tile.Height == height;
+
+        return tile.Height == height;
+    }
     public GrassTileType Resolve(MapData map, int x, int y)
     {
         int height = map.GetTile(x, y).Height;
@@ -39,15 +60,5 @@ public class TerrainAutotiler
         if (!s && !e) return GrassTileType.BottomRight;
 
         return GrassTileType.Center;
-    }
-
-    bool Solid(MapData map, int x, int y, int height)
-    {
-        if (!map.IsInside(x, y))
-            return false;
-
-        MapTile tile = map.GetTile(x, y);
-
-        return tile.IsLand && tile.Height == height;
     }
 }
