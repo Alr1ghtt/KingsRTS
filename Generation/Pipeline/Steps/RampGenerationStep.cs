@@ -84,40 +84,89 @@ public class RampGenerationStep : IMapGenerationStep
             if (current == null)
                 continue;
 
-            // LEFT wall
+            // LEFT wall (ставим рампу ВНУТРИ впадины)
             if (map.IsInside(x - 1, y))
             {
-                var left = map.GetTile(x - 1, y);
+                var left1 = map.GetTile(x - 1, y);
 
-                if (left != null && left.Height > current.Height)
+                if (left1 != null && left1.Height > current.Height)
                 {
-                    if (map.IsInside(x - 1, y))
-                        leftEdges.Add(new Vector2Int(x - 1, y));
+                    if (IsValidRampSpot(map, x, y))
+                        leftEdges.Add(new Vector2Int(x, y));
                 }
             }
 
             // RIGHT wall
             if (map.IsInside(x + 1, y))
             {
-                var right = map.GetTile(x + 1, y);
+                var right1 = map.GetTile(x + 1, y);
 
-                if (right != null && right.Height > current.Height)
+                if (right1 != null && right1.Height > current.Height)
                 {
-                    if (map.IsInside(x + 1, y))
-                        rightEdges.Add(new Vector2Int(x + 1, y));
+                    if (IsValidRampSpot(map, x, y))
+                        rightEdges.Add(new Vector2Int(x, y));
                 }
             }
         }
 
         var result = new List<Vector2Int>();
 
-        if (leftEdges.Count > 0)
-            result.Add(GetMiddle(leftEdges));
+        var left = GetSpaced(leftEdges);
+        var right = GetSpaced(rightEdges);
 
-        if (rightEdges.Count > 0)
-            result.Add(GetMiddle(rightEdges));
+        if (left.HasValue)
+            result.Add(left.Value);
+
+        if (right.HasValue)
+            result.Add(right.Value);
 
         return result;
+    }
+    Vector2Int? GetSpaced(List<Vector2Int> list)
+    {
+        if (list.Count == 0)
+            return null;
+
+        list.Sort((a, b) => a.y.CompareTo(b.y));
+
+        var mid = list[list.Count / 2];
+
+        // проверка дистанции от других рамп (2 клетки)
+        foreach (var p in list)
+        {
+            if (Mathf.Abs(p.y - mid.y) >= 2)
+                return p;
+        }
+
+        return mid;
+    }
+    bool IsValidRampSpot(MapData map, int x, int y)
+    {
+        // нельзя в углах
+        if (!map.IsInside(x, y + 1))
+            return false;
+
+        var top = map.GetTile(x, y + 1);
+        var center = map.GetTile(x, y);
+
+        if (top == null || center == null)
+            return false;
+
+        // должен быть перепад вверх
+        if (top.Height <= center.Height)
+            return false;
+
+        // слева и справа должны быть "ровные" стены
+        var l = map.GetTile(x - 1, y);
+        var r = map.GetTile(x + 1, y);
+
+        if (l == null || r == null)
+            return false;
+
+        if (l.Height == center.Height && r.Height == center.Height)
+            return false; // это не край
+
+        return true;
     }
 
     Vector2Int GetMiddle(List<Vector2Int> list)
@@ -128,6 +177,9 @@ public class RampGenerationStep : IMapGenerationStep
 
     void PlaceDepressionRamps(MapData map, List<Vector2Int> edges)
     {
+        if (edges.Count == 0)
+            return;
+
         edges.Sort((a, b) => a.x.CompareTo(b.x));
 
         var left = edges[0];

@@ -28,7 +28,7 @@ public class TerrainAutotiler
             return false;
 
         if (tile.Type == TileType.Ramp)
-            return tile.Height == height;
+            return false;
 
         return tile.Height == height;
     }

@@ -275,28 +275,12 @@ public class TerrainTilemapRenderer : MonoBehaviour
         bool downRamp = IsRamp(map, x, y - 1);
         bool upRamp = IsRamp(map, x, y + 1);
 
+        // только мягкая коррекция снизу
         if (downRamp)
-        {
-            if (leftRamp) return GrassTileType.BottomLeft;
-            if (rightRamp) return GrassTileType.BottomRight;
             return GrassTileType.Bottom;
-        }
 
         if (upRamp)
-        {
-            if (leftRamp) return GrassTileType.TopLeft;
-            if (rightRamp) return GrassTileType.TopRight;
             return GrassTileType.Top;
-        }
-
-        if (leftRamp && rightRamp)
-            return GrassTileType.Center;
-
-        if (leftRamp)
-            return GrassTileType.Left;
-
-        if (rightRamp)
-            return GrassTileType.Right;
 
         return original;
     }
