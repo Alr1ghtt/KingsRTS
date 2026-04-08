@@ -2,6 +2,21 @@ using UnityEngine;
 
 public class TerrainAutotiler
 {
+    bool IsRampEdge(MapData map, int x, int y, int height)
+    {
+        if (!map.IsInside(x, y))
+            return false;
+
+        var t = map.GetTile(x, y);
+
+        if (t == null)
+            return false;
+
+        if (t.Type != TileType.Ramp)
+            return false;
+
+        return t.Height == height;
+    }
     bool Solid(MapData map, int x, int y, int height)
     {
         if (!map.IsInside(x, y))
@@ -9,13 +24,7 @@ public class TerrainAutotiler
 
         var tile = map.GetTile(x, y);
 
-        if (tile == null)
-            return false;
-
-        if (!tile.IsLand)
-            return false;
-
-        if (tile.Height == 0)
+        if (tile == null || !tile.IsLand)
             return false;
 
         if (tile.Type == TileType.Ramp)
@@ -31,6 +40,16 @@ public class TerrainAutotiler
         bool s = Solid(map, x, y - 1, height);
         bool e = Solid(map, x + 1, y, height);
         bool w = Solid(map, x - 1, y, height);
+
+        bool rn = IsRampEdge(map, x, y + 1, height);
+        bool rs = IsRampEdge(map, x, y - 1, height);
+        bool re = IsRampEdge(map, x + 1, y, height);
+        bool rw = IsRampEdge(map, x - 1, y, height);
+
+        n |= rn;
+        s |= rs;
+        e |= re;
+        w |= rw;
 
         int count =
             (n ? 1 : 0) +

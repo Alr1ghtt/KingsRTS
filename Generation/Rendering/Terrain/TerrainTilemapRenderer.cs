@@ -273,6 +273,7 @@ public class TerrainTilemapRenderer : MonoBehaviour
         bool leftRamp = IsRamp(map, x - 1, y);
         bool rightRamp = IsRamp(map, x + 1, y);
         bool downRamp = IsRamp(map, x, y - 1);
+        bool upRamp = IsRamp(map, x, y + 1);
 
         if (downRamp)
         {
@@ -280,6 +281,22 @@ public class TerrainTilemapRenderer : MonoBehaviour
             if (rightRamp) return GrassTileType.BottomRight;
             return GrassTileType.Bottom;
         }
+
+        if (upRamp)
+        {
+            if (leftRamp) return GrassTileType.TopLeft;
+            if (rightRamp) return GrassTileType.TopRight;
+            return GrassTileType.Top;
+        }
+
+        if (leftRamp && rightRamp)
+            return GrassTileType.Center;
+
+        if (leftRamp)
+            return GrassTileType.Left;
+
+        if (rightRamp)
+            return GrassTileType.Right;
 
         return original;
     }
