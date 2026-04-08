@@ -72,51 +72,58 @@ public class RampGenerationStep : IMapGenerationStep
 
     List<Vector2Int> FindDepressionEdges(MapData map, List<Vector2Int> region)
     {
-        var result = new List<Vector2Int>();
+        var leftEdges = new List<Vector2Int>();
+        var rightEdges = new List<Vector2Int>();
 
         foreach (var p in region)
         {
-            if (!map.IsInside(p.x, p.y + 1))
+            int x = p.x;
+            int y = p.y;
+
+            var current = map.GetTile(x, y);
+            if (current == null)
                 continue;
 
-            var current = map.GetTile(p.x, p.y);
-            var above = map.GetTile(p.x, p.y + 1);
-
-            if (above == null)
-                continue;
-
-            if (above.Height > current.Height)
+            // LEFT wall
+            if (map.IsInside(x - 1, y))
             {
-                if (HasHorizontalSpace(map, p.x, p.y + 1))
-                    result.Add(new Vector2Int(p.x, p.y + 1));
+                var left = map.GetTile(x - 1, y);
+
+                if (left != null && left.Height > current.Height)
+                {
+                    if (map.IsInside(x - 1, y))
+                        leftEdges.Add(new Vector2Int(x - 1, y));
+                }
+            }
+
+            // RIGHT wall
+            if (map.IsInside(x + 1, y))
+            {
+                var right = map.GetTile(x + 1, y);
+
+                if (right != null && right.Height > current.Height)
+                {
+                    if (map.IsInside(x + 1, y))
+                        rightEdges.Add(new Vector2Int(x + 1, y));
+                }
             }
         }
+
+        var result = new List<Vector2Int>();
+
+        if (leftEdges.Count > 0)
+            result.Add(GetMiddle(leftEdges));
+
+        if (rightEdges.Count > 0)
+            result.Add(GetMiddle(rightEdges));
 
         return result;
     }
 
-    bool HasHorizontalSpace(MapData map, int x, int y)
+    Vector2Int GetMiddle(List<Vector2Int> list)
     {
-        if (!map.IsInside(x - 1, y) || !map.IsInside(x + 1, y))
-            return false;
-
-        var center = map.GetTile(x, y);
-        var left = map.GetTile(x - 1, y);
-        var right = map.GetTile(x + 1, y);
-
-        if (center == null || left == null || right == null)
-            return false;
-
-        if (!left.IsLand || !right.IsLand)
-            return false;
-
-        if (left.Height != center.Height)
-            return false;
-
-        if (right.Height != center.Height)
-            return false;
-
-        return true;
+        list.Sort((a, b) => a.y.CompareTo(b.y));
+        return list[list.Count / 2];
     }
 
     void PlaceDepressionRamps(MapData map, List<Vector2Int> edges)
@@ -126,10 +133,10 @@ public class RampGenerationStep : IMapGenerationStep
         var left = edges[0];
         var right = edges[edges.Count - 1];
 
-        PlaceRampWithAutoDirection(map, left.x, left.y);
+        PlaceRamp(map, left.x, left.y, RampDirection.East);
 
         if (right != left)
-            PlaceRampWithAutoDirection(map, right.x, right.y);
+            PlaceRamp(map, right.x, right.y, RampDirection.West);
     }
 
     List<Vector2Int> FloodFill(MapData map, int sx, int sy, int h, bool[,] visited)
