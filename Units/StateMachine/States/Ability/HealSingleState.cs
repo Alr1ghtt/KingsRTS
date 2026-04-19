@@ -2,19 +2,27 @@ using UnityEngine;
 
 public class HealSingleState : IUnitState
 {
-    public void Enter(UnitContext context) { }
+    public void Enter(UnitContext context)
+    {
+    }
 
     public void Update(UnitContext context, float deltaTime)
     {
-        if (context.TargetUnit == null)
+        var targetUnit = context.RepairTarget as Unit;
+        if (targetUnit == null)
+            return;
+
+        if (!targetUnit.IsAlive)
             return;
 
         if (context.AttackCooldown > 0f)
             return;
 
-        context.TargetUnit.Context.CurrentHealth += 10f;
+        targetUnit.Repair(10f);
         context.AttackCooldown = 1.5f;
     }
 
-    public void Exit(UnitContext context) { }
+    public void Exit(UnitContext context)
+    {
+    }
 }

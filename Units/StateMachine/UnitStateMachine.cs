@@ -4,10 +4,13 @@ public class UnitStateMachine
 
     public IUnitState CurrentState => _currentState;
 
-    public void SetState(IUnitState newState, UnitContext context)
+    public void SetState(IUnitState state, UnitContext context)
     {
+        if (_currentState == state)
+            return;
+
         _currentState?.Exit(context);
-        _currentState = newState;
+        _currentState = state;
         _currentState?.Enter(context);
     }
 
@@ -15,4 +18,4 @@ public class UnitStateMachine
     {
         _currentState?.Update(context, deltaTime);
     }
-} 
+}

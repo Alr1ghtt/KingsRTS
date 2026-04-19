@@ -2,16 +2,24 @@ using UnityEngine;
 
 public class ChargeState : IUnitState
 {
-    public void Enter(UnitContext context) { }
+    public void Enter(UnitContext context)
+    {
+    }
 
     public void Update(UnitContext context, float deltaTime)
     {
-        if (context.TargetUnit == null)
+        var targetUnit = context.AttackTarget as Unit;
+        if (targetUnit == null)
             return;
 
-        var dir = (context.TargetUnit.Context.Transform.position - context.Transform.position).normalized;
-        context.Transform.position += dir * context.Data.MoveSpeed * 2f * deltaTime;
+        if (!targetUnit.IsAlive)
+            return;
+
+        var direction = (targetUnit.Context.Transform.position - context.Transform.position).normalized;
+        context.Transform.position += direction * context.Data.MoveSpeed * 2f * deltaTime;
     }
 
-    public void Exit(UnitContext context) { }
+    public void Exit(UnitContext context)
+    {
+    }
 }
