@@ -5,6 +5,7 @@ public class Building : MonoBehaviour
     [SerializeField] private BuildingData _data;
     [SerializeField] private TeamColor _teamColor;
     [SerializeField] private int _ownerPlayerId;
+    [SerializeField] private BuildingTeamVisual _teamVisual;
 
     private BuildingContext _context;
     private int _currentHealth;
@@ -28,14 +29,14 @@ public class Building : MonoBehaviour
         _currentHealth = _data.MaxHealth;
         _isDestroyed = false;
         _context = new BuildingContext(this, _data, _ownerPlayerId, _teamColor, transform);
+
+        ApplyTeamVisual();
     }
 
     public bool CanProduce(BuildingUnitType unitType)
     {
         if (_data == null)
-        {
             return false;
-        }
 
         return _data.CanProduce(unitType);
     }
@@ -43,9 +44,7 @@ public class Building : MonoBehaviour
     public bool CanGarrison(BuildingUnitType unitType)
     {
         if (_data == null)
-        {
             return false;
-        }
 
         return _data.CanGarrison(unitType);
     }
@@ -53,9 +52,7 @@ public class Building : MonoBehaviour
     public bool CanUpgradeUnits()
     {
         if (_data == null)
-        {
             return false;
-        }
 
         return _data.CanUpgradeUnits;
     }
@@ -63,9 +60,7 @@ public class Building : MonoBehaviour
     public void RestoreFullHealth()
     {
         if (_data == null)
-        {
             return;
-        }
 
         _currentHealth = _data.MaxHealth;
         _isDestroyed = false;
@@ -74,9 +69,7 @@ public class Building : MonoBehaviour
     public void TakeDamage(int damage)
     {
         if (_isDestroyed || _data == null)
-        {
             return;
-        }
 
         int finalDamage = Mathf.Max(1, damage - _data.Armor);
         _currentHealth -= finalDamage;
@@ -91,21 +84,27 @@ public class Building : MonoBehaviour
     public void Heal(int amount)
     {
         if (_isDestroyed || _data == null)
-        {
             return;
-        }
 
         _currentHealth = Mathf.Min(_currentHealth + amount, _data.MaxHealth);
     }
 
     private void Awake()
     {
-        if (_data == null)
+        if (_data != null)
         {
-            return;
+            _currentHealth = _data.MaxHealth;
+            _context = new BuildingContext(this, _data, _ownerPlayerId, _teamColor, transform);
         }
 
-        _currentHealth = _data.MaxHealth;
-        _context = new BuildingContext(this, _data, _ownerPlayerId, _teamColor, transform);
+        ApplyTeamVisual();
+    }
+
+    private void ApplyTeamVisual()
+    {
+        if (_teamVisual == null)
+            return;
+
+        _teamVisual.Apply(_teamColor);
     }
 }

@@ -24,4 +24,4 @@ MonoBehaviour:
   _garrisonUnits: 
   _canUpgradeUnits: 0
   _buildTime: 10
-  _buildingPrefab: {fileID: 0}
+  _buildingPrefab: {fileID: 6047152973848320477, guid: 98f13de600be13047b06316fd20a12ab, type: 3}
