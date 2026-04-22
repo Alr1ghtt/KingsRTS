@@ -14,6 +14,21 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     [SerializeField] private bool _drawAttackRange = true;
     [SerializeField] private bool _drawVisionRange = true;
 
+    [SerializeField] private UnitType _unitType;
+    [SerializeField] private int _ownerPlayerId;
+    [SerializeField] private TeamColor _teamColor;
+    [SerializeField] private float _moveSpeed = 3f;
+
+    public UnitType UnitType => _unitType;
+    public int OwnerPlayerId => _ownerPlayerId;
+    public TeamColor TeamColor => _teamColor;
+    public float MoveSpeed => _moveSpeed;
+
+    public bool IsWorker()
+    {
+        return _unitType == UnitType.Worker;
+    }
+
     private UnitContext _context;
     private UnitStateMachine _stateMachine;
     private UnitBrain _brain;
