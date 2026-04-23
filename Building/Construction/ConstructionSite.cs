@@ -19,7 +19,7 @@ public class ConstructionSite : MonoBehaviour
     public float CurrentProgress => _currentProgress;
     public float BuildTime => _buildingData != null ? _buildingData.BuildTime : 0f;
     public bool IsCompleted => _isCompleted;
-    public Vector3 WorkPoint => transform.position;
+    public Vector3 WorkPoint => _workPoint != null ? _workPoint.position : transform.position;
     public int ActiveWorkersCount => GetActiveWorkersCount();
     public float NormalizedProgress => _buildingData == null || _buildingData.BuildTime <= 0f ? 0f : Mathf.Clamp01(_currentProgress / _buildingData.BuildTime);
 
@@ -88,6 +88,7 @@ public class ConstructionSite : MonoBehaviour
         CleanupWorkers();
 
         int activeWorkers = GetActiveWorkersCount();
+        Debug.Log($"ConstructionSite {_buildingData.DisplayName}: activeWorkers = {activeWorkers}, progress = {_currentProgress}", this);
 
         if (activeWorkers <= 0)
             return;
@@ -99,6 +100,7 @@ public class ConstructionSite : MonoBehaviour
             _currentProgress = _buildingData.BuildTime;
             CompleteConstruction();
         }
+
     }
 
     private void CompleteConstruction()

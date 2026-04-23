@@ -68,13 +68,13 @@ public class WorkerConstructionAgent : MonoBehaviour
             return;
         }
 
-        if (IsInBuildRangeToAssignedSite())
+        if (IsInBuildRange())
         {
             SetBuildAnimationIfNeeded();
             return;
         }
 
-        SetIdleAnimationIfNeeded();
+        SetRunAnimationIfNeeded();
     }
 
     public bool IsAssignedTo(ConstructionSite site)
@@ -151,12 +151,6 @@ public class WorkerConstructionAgent : MonoBehaviour
 
     public bool IsInBuildRange()
     {
-        float distance = Vector3.Distance(transform.position, _pendingBuildPoint);
-        return distance <= _buildRange;
-    }
-
-    public bool IsInBuildRangeToAssignedSite()
-    {
         if (_assignedSite == null)
             return false;
 
@@ -181,8 +175,13 @@ public class WorkerConstructionAgent : MonoBehaviour
 
     private void UpdatePendingBuild()
     {
-        if (!IsInBuildRange())
+        float distanceToBuildPoint = Vector3.Distance(transform.position, _pendingBuildPoint);
+
+        if (distanceToBuildPoint > _buildRange)
+        {
+            SetRunAnimationIfNeeded();
             return;
+        }
 
         if (_buildingPlacementSystem == null)
         {
