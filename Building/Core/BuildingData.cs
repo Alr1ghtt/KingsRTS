@@ -14,6 +14,7 @@ public class BuildingData : ScriptableObject
     [SerializeField] private bool _canUpgradeUnits;
     [SerializeField] private float _buildTime = 10f;
     [SerializeField] private Building _buildingPrefab;
+    [SerializeField] private Sprite _previewSprite;
 
     public string Id => _id;
     public string DisplayName => _displayName;
@@ -26,6 +27,7 @@ public class BuildingData : ScriptableObject
     public bool CanUpgradeUnits => _canUpgradeUnits;
     public float BuildTime => _buildTime;
     public Building BuildingPrefab => _buildingPrefab;
+    public Sprite PreviewSprite => _previewSprite;
 
     public bool CanProduce(BuildingUnitType unitType)
     {

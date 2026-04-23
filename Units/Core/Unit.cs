@@ -9,6 +9,7 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     [SerializeField] private Transform _visualRoot;
     [SerializeField] private string _idleAnimationStateName = "Idle";
     [SerializeField] private string _runAnimationStateName = "Run";
+    [SerializeField] private string _buildAnimationStateName = "Build";
     [SerializeField] private float _animationCrossFadeDuration = 0.05f;
     [SerializeField] private int _animationLayerIndex;
     [SerializeField] private bool _drawAttackRange = true;
@@ -18,7 +19,10 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     [SerializeField] private int _ownerPlayerId;
     [SerializeField] private TeamColor _teamColor;
     [SerializeField] private float _moveSpeed = 3f;
-
+    public Animator Animator => _animator;
+    public string IdleAnimationStateName => _idleAnimationStateName;
+    public string RunAnimationStateName => _runAnimationStateName;
+    public string BuildAnimationStateName => _buildAnimationStateName;
     public UnitType UnitType => _unitType;
     public int OwnerPlayerId => _ownerPlayerId;
     public TeamColor TeamColor => _teamColor;

@@ -25,3 +25,4 @@ MonoBehaviour:
   _canUpgradeUnits: 1
   _buildTime: 10
   _buildingPrefab: {fileID: 5824665322870170997, guid: 089bf02f6c3748243aa954b95616d8a3, type: 3}
+  _previewSprite: {fileID: 21300000, guid: d0349d8d3a04044f7a4810157b116b14, type: 3}

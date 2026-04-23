@@ -8,6 +8,8 @@ public class ConstructionSite : MonoBehaviour
     [SerializeField] private TeamColor _teamColor;
     [SerializeField] private float _currentProgress;
     [SerializeField] private bool _isCompleted;
+    [SerializeField] private bool _enableDebugLogs = true;
+    [SerializeField] private Transform _workPoint;
 
     private readonly List<ConstructionWorkerSlot> _workers = new List<ConstructionWorkerSlot>();
 
@@ -17,6 +19,7 @@ public class ConstructionSite : MonoBehaviour
     public float CurrentProgress => _currentProgress;
     public float BuildTime => _buildingData != null ? _buildingData.BuildTime : 0f;
     public bool IsCompleted => _isCompleted;
+    public Vector3 WorkPoint => transform.position;
     public int ActiveWorkersCount => GetActiveWorkersCount();
     public float NormalizedProgress => _buildingData == null || _buildingData.BuildTime <= 0f ? 0f : Mathf.Clamp01(_currentProgress / _buildingData.BuildTime);
 
@@ -28,6 +31,8 @@ public class ConstructionSite : MonoBehaviour
         _currentProgress = 0f;
         _isCompleted = false;
         _workers.Clear();
+
+        Log($"Создана стройплощадка {_buildingData.DisplayName}, игрок {_ownerPlayerId}, команда {_teamColor}");
     }
 
     public bool CanAssignWorker(WorkerConstructionAgent worker)
@@ -38,10 +43,7 @@ public class ConstructionSite : MonoBehaviour
         if (worker == null)
             return false;
 
-        if (!worker.Unit.IsWorker())
-            return false;
-
-        if (worker.Unit.OwnerPlayerId != _ownerPlayerId)
+        if (worker.Unit.PlayerId != _ownerPlayerId)
             return false;
 
         for (int i = 0; i < _workers.Count; i++)
@@ -59,6 +61,7 @@ public class ConstructionSite : MonoBehaviour
             return false;
 
         _workers.Add(new ConstructionWorkerSlot(worker));
+        Log($"Рабочий {worker.name} добавлен на стройку {_buildingData.DisplayName}");
         return true;
     }
 
@@ -70,7 +73,10 @@ public class ConstructionSite : MonoBehaviour
         for (int i = _workers.Count - 1; i >= 0; i--)
         {
             if (_workers[i].Worker == worker)
+            {
                 _workers.RemoveAt(i);
+                Log($"Рабочий {worker.name} снят со стройки {_buildingData.DisplayName}");
+            }
         }
     }
 
@@ -102,17 +108,30 @@ public class ConstructionSite : MonoBehaviour
 
         _isCompleted = true;
 
+        Log($"Строительство завершено: {_buildingData.DisplayName}");
+
         for (int i = 0; i < _workers.Count; i++)
         {
             if (_workers[i].Worker != null)
                 _workers[i].Worker.OnConstructionCompleted(this);
         }
 
-        if (_buildingData == null || _buildingData.BuildingPrefab == null)
+        if (_buildingData == null)
+        {
+            Log("BuildingData отсутствует, здание не может быть создано");
             return;
+        }
+
+        if (_buildingData.BuildingPrefab == null)
+        {
+            Log($"У {_buildingData.DisplayName} не назначен BuildingPrefab");
+            return;
+        }
 
         Building building = Instantiate(_buildingData.BuildingPrefab, transform.position, transform.rotation);
         building.Initialize(_buildingData, _ownerPlayerId, _teamColor);
+
+        Log($"Создано здание {_buildingData.DisplayName}, игрок {_ownerPlayerId}, команда {_teamColor}");
 
         Destroy(gameObject);
     }
@@ -130,9 +149,7 @@ public class ConstructionSite : MonoBehaviour
             }
 
             if (!worker.IsAssignedTo(this))
-            {
                 _workers.RemoveAt(i);
-            }
         }
     }
 
@@ -157,5 +174,11 @@ public class ConstructionSite : MonoBehaviour
         }
 
         return count;
+    }
+
+    private void Log(string message)
+    {
+        if (_enableDebugLogs)
+            Debug.Log(message, this);
     }
 }

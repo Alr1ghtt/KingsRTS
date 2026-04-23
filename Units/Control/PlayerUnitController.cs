@@ -21,16 +21,30 @@ public class PlayerUnitController : MonoBehaviour
     [SerializeField] private LayerMask _unitMask = -1;
     [SerializeField] private float _clickSelectionThreshold = 8f;
 
+    [Header("Building")]
+    [SerializeField] private BuildingPlacementSystem _buildingPlacementSystem;
+    [SerializeField] private BuildingPlacementPreview _buildingPlacementPreview;
+    [SerializeField] private bool _enableBuildDebugLogs = true;
+    [SerializeField] private BuildingData _archeryData;
+    [SerializeField] private BuildingData _barracksData;
+    [SerializeField] private BuildingData _castleData;
+    [SerializeField] private BuildingData _houseData;
+    [SerializeField] private BuildingData _monasteryData;
+    [SerializeField] private BuildingData _towerData;
+
     private readonly List<Unit> _selectedUnits = new();
+    private readonly List<WorkerConstructionAgent> _selectedWorkers = new();
 
     private InputMode _inputMode;
     private bool _isDraggingSelection;
     private Vector2 _selectionStartScreen;
+    private BuildingData _pendingBuildingData;
 
     private Mouse _mouse;
     private Keyboard _keyboard;
 
     public int LocalPlayerId => _localPlayerId;
+    public List<Unit> SelectedUnits => _selectedUnits;
 
     private void Awake()
     {
@@ -46,14 +60,62 @@ public class PlayerUnitController : MonoBehaviour
         if (_keyboard == null)
             _keyboard = Keyboard.current;
 
+        RefreshSelectedWorkers();
+        HandleBuildSelectionHotkeys();
         HandleModeHotkeys();
         HandleSelection();
         HandleOrders();
+        UpdateBuildPreview();
+    }
+    private void CancelSelectedWorkersConstructionOrders()
+    {
+        for (int i = 0; i < _selectedWorkers.Count; i++)
+        {
+            if (_selectedWorkers[i] == null)
+                continue;
+
+            _selectedWorkers[i].CancelConstructionOrder();
+        }
+    }
+    private void HandleBuildSelectionHotkeys()
+    {
+        if (_keyboard == null)
+            return;
+
+        if (_inputMode != InputMode.Build)
+            return;
+
+        if (_pendingBuildingData == null)
+        {
+            if (_keyboard.aKey.wasPressedThisFrame)
+                SelectPendingBuilding(_archeryData);
+
+            if (_keyboard.bKey.wasPressedThisFrame)
+                SelectPendingBuilding(_barracksData);
+
+            if (_keyboard.cKey.wasPressedThisFrame)
+                SelectPendingBuilding(_castleData);
+
+            if (_keyboard.hKey.wasPressedThisFrame)
+                SelectPendingBuilding(_houseData);
+
+            if (_keyboard.mKey.wasPressedThisFrame)
+                SelectPendingBuilding(_monasteryData);
+
+            if (_keyboard.tKey.wasPressedThisFrame)
+                SelectPendingBuilding(_towerData);
+        }
+
+        if (_keyboard.escapeKey.wasPressedThisFrame)
+            CancelBuildMode();
     }
 
     private void HandleModeHotkeys()
     {
         if (_keyboard == null)
+            return;
+
+        if (_inputMode == InputMode.Build && _pendingBuildingData != null)
             return;
 
         if (_keyboard.mKey.wasPressedThisFrame)
@@ -62,16 +124,23 @@ public class PlayerUnitController : MonoBehaviour
         if (_keyboard.pKey.wasPressedThisFrame)
             _inputMode = InputMode.Patrol;
 
-        if (_keyboard.aKey.wasPressedThisFrame)
+        if (_keyboard.aKey.wasPressedThisFrame && _inputMode != InputMode.Build)
             _inputMode = InputMode.Attack;
 
         if (_keyboard.rKey.wasPressedThisFrame)
             _inputMode = InputMode.Repair;
 
         if (_keyboard.bKey.wasPressedThisFrame)
-            _inputMode = InputMode.Build;
+        {
+            if (AreAllSelectedWorkers())
+            {
+                _inputMode = InputMode.Build;
+                _pendingBuildingData = null;
+                LogBuild("Рабочий готов к строительству, идет выбор постройки");
+            }
+        }
 
-        if (_keyboard.hKey.wasPressedThisFrame)
+        if (_keyboard.hKey.wasPressedThisFrame && _inputMode != InputMode.Build)
         {
             if (_selectedUnits.Count > 0)
             {
@@ -135,6 +204,12 @@ public class PlayerUnitController : MonoBehaviour
         if (_mouse == null)
             return;
 
+        if (_inputMode == InputMode.Build)
+        {
+            HandleBuildPlacement();
+            return;
+        }
+
         if (_mouse.rightButton.wasPressedThisFrame)
         {
             HandleContextRightClick();
@@ -161,15 +236,176 @@ public class PlayerUnitController : MonoBehaviour
             case InputMode.Repair:
                 IssueRepairOrder();
                 break;
-
-            case InputMode.Build:
-                IssueBuildOrder();
-                break;
         }
     }
 
+    private void HandleBuildPlacement()
+    {
+        if (_mouse == null)
+            return;
+
+        if (_mouse.rightButton.wasPressedThisFrame)
+        {
+            CancelBuildMode();
+            return;
+        }
+
+        if (_pendingBuildingData == null)
+            return;
+
+        if (!_mouse.leftButton.wasPressedThisFrame)
+            return;
+
+        if (_groundClickRaycaster == null)
+            return;
+
+        if (!_groundClickRaycaster.TryGetGroundPoint(out var point))
+            return;
+
+        WorkerConstructionAgent firstWorker = GetFirstSelectedWorker();
+        if (firstWorker == null)
+        {
+            LogBuild("Нет выбранного рабочего для строительства");
+            CancelBuildMode();
+            return;
+        }
+
+        LogBuild($"Выбрана точка строительства {_pendingBuildingData.DisplayName}: {point}");
+
+        for (int i = 0; i < _selectedWorkers.Count; i++)
+        {
+            if (_selectedWorkers[i] == null)
+                continue;
+
+            _selectedWorkers[i].StartPendingBuild(_pendingBuildingData, point, _localPlayerId, _selectedWorkers[i].Unit.TeamColor, _buildingPlacementSystem);
+        }
+
+        var moveOrders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, point);
+        ApplyOrders(moveOrders);
+
+        CancelBuildMode();
+    }
+    private void UpdateBuildPreview()
+    {
+        if (_buildingPlacementPreview == null)
+            return;
+
+        if (_inputMode != InputMode.Build || _pendingBuildingData == null)
+        {
+            _buildingPlacementPreview.Hide();
+            return;
+        }
+
+        if (_groundClickRaycaster == null)
+        {
+            _buildingPlacementPreview.Hide();
+            return;
+        }
+
+        if (!_groundClickRaycaster.TryGetGroundPoint(out var point))
+        {
+            _buildingPlacementPreview.Hide();
+            return;
+        }
+
+        _buildingPlacementPreview.Show(_pendingBuildingData, point);
+    }
+
+    private void SelectPendingBuilding(BuildingData buildingData)
+    {
+        if (buildingData == null)
+        {
+            LogBuild("BuildingData не назначен");
+            return;
+        }
+
+        _pendingBuildingData = buildingData;
+        LogBuild($"Выбрана постройка: {buildingData.DisplayName}");
+    }
+
+    private void CancelBuildMode()
+    {
+        _pendingBuildingData = null;
+        _inputMode = InputMode.Default;
+
+        if (_buildingPlacementPreview != null)
+            _buildingPlacementPreview.Hide();
+
+        LogBuild("Режим строительства отменен");
+    }
+
+    private void RefreshSelectedWorkers()
+    {
+        _selectedWorkers.Clear();
+
+        for (int i = 0; i < _selectedUnits.Count; i++)
+        {
+            if (_selectedUnits[i] == null)
+                continue;
+
+            WorkerConstructionAgent worker = _selectedUnits[i].GetComponent<WorkerConstructionAgent>();
+            if (worker == null)
+                continue;
+
+            if (!worker.Unit.Data.CanBuild)
+                continue;
+
+            _selectedWorkers.Add(worker);
+        }
+    }
+
+    private WorkerConstructionAgent GetFirstSelectedWorker()
+    {
+        for (int i = 0; i < _selectedWorkers.Count; i++)
+        {
+            if (_selectedWorkers[i] != null)
+                return _selectedWorkers[i];
+        }
+
+        return null;
+    }
+    private bool TryAssignWorkersToConstructionSiteUnderCursor()
+    {
+        if (_camera == null)
+            _camera = Camera.main;
+
+        if (_camera == null || _mouse == null)
+            return false;
+
+        if (_selectedWorkers.Count == 0)
+            return false;
+
+        var worldPoint = GetMouseWorldPoint();
+        var hit = Physics2D.OverlapPoint(worldPoint);
+        if (hit == null)
+            return false;
+
+        ConstructionSite site = hit.GetComponentInParent<ConstructionSite>();
+        if (site == null)
+            return false;
+
+        LogBuild($"Назначение рабочих на существующую стройку: {site.BuildingData.DisplayName}");
+
+        for (int i = 0; i < _selectedWorkers.Count; i++)
+        {
+            if (_selectedWorkers[i] == null)
+                continue;
+
+            _selectedWorkers[i].AssignToSite(site);
+        }
+
+        return true;
+    }
     private void HandleContextRightClick()
     {
+        if (TryAssignWorkersToConstructionSiteUnderCursor())
+        {
+            _inputMode = InputMode.Default;
+            return;
+        }
+
+        CancelSelectedWorkersConstructionOrders();
+
         var attackTarget = GetAttackTargetUnderCursor();
         if (attackTarget != null)
         {
@@ -201,6 +437,7 @@ public class PlayerUnitController : MonoBehaviour
 
     private void IssueMoveOrder()
     {
+        CancelSelectedWorkersConstructionOrders();
         if (_groundClickRaycaster == null)
             return;
 
@@ -214,6 +451,7 @@ public class PlayerUnitController : MonoBehaviour
 
     private void IssuePatrolOrder()
     {
+        CancelSelectedWorkersConstructionOrders();
         if (_groundClickRaycaster == null)
             return;
 
@@ -227,6 +465,7 @@ public class PlayerUnitController : MonoBehaviour
 
     private void IssueAttackOrder()
     {
+        CancelSelectedWorkersConstructionOrders();
         var attackTarget = GetAttackTargetUnderCursor();
         if (attackTarget != null)
         {
@@ -249,6 +488,7 @@ public class PlayerUnitController : MonoBehaviour
 
     private void IssueRepairOrder()
     {
+        CancelSelectedWorkersConstructionOrders();
         if (!AreAllSelectedWorkers())
         {
             _inputMode = InputMode.Default;
@@ -263,25 +503,6 @@ public class PlayerUnitController : MonoBehaviour
         }
 
         var orders = UnitOrderFactory.CreateRepairOrders(_selectedUnits, repairTarget);
-        ApplyOrders(orders);
-        _inputMode = InputMode.Default;
-    }
-
-    private void IssueBuildOrder()
-    {
-        if (!AreAllSelectedWorkers())
-        {
-            _inputMode = InputMode.Default;
-            return;
-        }
-
-        if (_groundClickRaycaster == null)
-            return;
-
-        if (!_groundClickRaycaster.TryGetGroundPoint(out var point))
-            return;
-
-        var orders = UnitOrderFactory.CreateBuildOrders(_selectedUnits, point);
         ApplyOrders(orders);
         _inputMode = InputMode.Default;
     }
@@ -476,5 +697,11 @@ public class PlayerUnitController : MonoBehaviour
             _selectedUnits[i].SetSelected(false);
 
         _selectedUnits.Clear();
+    }
+
+    private void LogBuild(string message)
+    {
+        if (_enableBuildDebugLogs)
+            Debug.Log(message, this);
     }
 }

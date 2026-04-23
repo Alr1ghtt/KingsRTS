@@ -5,6 +5,7 @@ public class BuildingPlacementInput : MonoBehaviour
 {
     [SerializeField] private Camera _camera;
     [SerializeField] private BuildingPlacementSystem _placementSystem;
+    [SerializeField] private bool _enableDebugLogs = true;
 
     [Header("Buildings")]
     [SerializeField] private BuildingData _archeryData;
@@ -58,6 +59,7 @@ public class BuildingPlacementInput : MonoBehaviour
             {
                 _state = BuildingPlacementState.WaitingForBuildingType;
                 _currentCommand = null;
+                Log("Рабочий готов к строительству, идет выбор постройки");
                 return;
             }
 
@@ -87,6 +89,7 @@ public class BuildingPlacementInput : MonoBehaviour
 
         if (Input.GetMouseButtonDown(1))
         {
+            Log("Выбор постройки отменен");
             _state = BuildingPlacementState.None;
             _currentCommand = null;
         }
@@ -104,16 +107,29 @@ public class BuildingPlacementInput : MonoBehaviour
         Plane plane = new Plane(Vector3.forward, Vector3.zero);
 
         if (!plane.Raycast(ray, out float enter))
+        {
+            Log("Не удалось определить точку строительства");
             return;
+        }
 
         Vector3 worldPoint = ray.GetPoint(enter);
 
         WorkerConstructionAgent firstWorker = GetFirstWorker();
         if (firstWorker == null)
+        {
+            Log("Нет доступного рабочего для строительства");
             return;
+        }
+
+        Log($"Попытка поставить {_currentCommand.BuildingData.DisplayName} в точке {worldPoint}");
 
         if (!_placementSystem.TryPlaceBuilding(_currentCommand.BuildingData, worldPoint, firstWorker.Unit.OwnerPlayerId, firstWorker.Unit.TeamColor, out ConstructionSite site))
+        {
+            Log($"Не удалось создать стройплощадку для {_currentCommand.BuildingData.DisplayName}");
             return;
+        }
+
+        Log($"Создана стройплощадка {_currentCommand.BuildingData.DisplayName}");
 
         for (int i = 0; i < _selectedWorkers.Count; i++)
         {
@@ -130,9 +146,13 @@ public class BuildingPlacementInput : MonoBehaviour
     private void SelectBuilding(BuildingData buildingData)
     {
         if (buildingData == null)
+        {
+            Log("BuildingData не назначен");
             return;
+        }
 
         _currentCommand = new ConstructionCommand(buildingData);
+        Log($"Выбрана постройка: {buildingData.DisplayName}");
     }
 
     private WorkerConstructionAgent GetFirstWorker()
@@ -144,5 +164,11 @@ public class BuildingPlacementInput : MonoBehaviour
         }
 
         return null;
+    }
+
+    private void Log(string message)
+    {
+        if (_enableDebugLogs)
+            Debug.Log(message, this);
     }
 }

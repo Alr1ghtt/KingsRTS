@@ -4,6 +4,7 @@ using UnityEngine;
 public class WorkerConstructionOrderInput : MonoBehaviour
 {
     [SerializeField] private Camera _camera;
+    [SerializeField] private bool _enableDebugLogs = true;
 
     private readonly List<WorkerConstructionAgent> _selectedWorkers = new List<WorkerConstructionAgent>();
 
@@ -44,6 +45,8 @@ public class WorkerConstructionOrderInput : MonoBehaviour
         if (site == null)
             return;
 
+        Log($"Назначение рабочих на существующую стройку: {site.BuildingData.DisplayName}");
+
         for (int i = 0; i < _selectedWorkers.Count; i++)
         {
             if (_selectedWorkers[i] == null)
@@ -51,5 +54,11 @@ public class WorkerConstructionOrderInput : MonoBehaviour
 
             _selectedWorkers[i].AssignToSite(site);
         }
+    }
+
+    private void Log(string message)
+    {
+        if (_enableDebugLogs)
+            Debug.Log(message, this);
     }
 }

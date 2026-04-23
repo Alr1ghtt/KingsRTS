@@ -33,62 +33,6 @@ public class Building : MonoBehaviour
         ApplyTeamVisual();
     }
 
-    public bool CanProduce(BuildingUnitType unitType)
-    {
-        if (_data == null)
-            return false;
-
-        return _data.CanProduce(unitType);
-    }
-
-    public bool CanGarrison(BuildingUnitType unitType)
-    {
-        if (_data == null)
-            return false;
-
-        return _data.CanGarrison(unitType);
-    }
-
-    public bool CanUpgradeUnits()
-    {
-        if (_data == null)
-            return false;
-
-        return _data.CanUpgradeUnits;
-    }
-
-    public void RestoreFullHealth()
-    {
-        if (_data == null)
-            return;
-
-        _currentHealth = _data.MaxHealth;
-        _isDestroyed = false;
-    }
-
-    public void TakeDamage(int damage)
-    {
-        if (_isDestroyed || _data == null)
-            return;
-
-        int finalDamage = Mathf.Max(1, damage - _data.Armor);
-        _currentHealth -= finalDamage;
-
-        if (_currentHealth <= 0)
-        {
-            _currentHealth = 0;
-            _isDestroyed = true;
-        }
-    }
-
-    public void Heal(int amount)
-    {
-        if (_isDestroyed || _data == null)
-            return;
-
-        _currentHealth = Mathf.Min(_currentHealth + amount, _data.MaxHealth);
-    }
-
     private void Awake()
     {
         if (_data != null)
@@ -102,9 +46,7 @@ public class Building : MonoBehaviour
 
     private void ApplyTeamVisual()
     {
-        if (_teamVisual == null)
-            return;
-
-        _teamVisual.Apply(_teamColor);
+        if (_teamVisual != null)
+            _teamVisual.Apply(_teamColor);
     }
 }
