@@ -67,6 +67,7 @@ public class PlayerUnitController : MonoBehaviour
         HandleOrders();
         UpdateBuildPreview();
     }
+
     private void CancelSelectedWorkersConstructionOrders()
     {
         for (int i = 0; i < _selectedWorkers.Count; i++)
@@ -77,6 +78,7 @@ public class PlayerUnitController : MonoBehaviour
             _selectedWorkers[i].CancelConstructionOrder();
         }
     }
+
     private void HandleBuildSelectionHotkeys()
     {
         if (_keyboard == null)
@@ -238,7 +240,39 @@ public class PlayerUnitController : MonoBehaviour
                 break;
         }
     }
+    private Vector3 CalculateBuildApproachPoint(Vector3 buildPoint, Vector3 workerPosition)
+    {
+        Vector2 buildAreaSize = new Vector2(2.664385f, 2.664385f);
+        Vector2 buildAreaOffset = new Vector2(0.008683f, 0f);
+        float padding = 0.4f;
+        float outsideOffset = 0.15f;
 
+        Vector3 center = buildPoint + new Vector3(buildAreaOffset.x, buildAreaOffset.y, 0f);
+        Vector3 offset = workerPosition - center;
+        offset.z = 0f;
+
+        float halfWidth = buildAreaSize.x * 0.5f + padding;
+        float halfHeight = buildAreaSize.y * 0.5f + padding;
+
+        Vector3 approachPoint = center;
+
+        float normalizedX = Mathf.Abs(offset.x) / halfWidth;
+        float normalizedY = Mathf.Abs(offset.y) / halfHeight;
+
+        if (normalizedX > normalizedY)
+        {
+            approachPoint.x += offset.x >= 0f ? halfWidth - outsideOffset : -halfWidth + outsideOffset;
+            approachPoint.y += Mathf.Clamp(offset.y, -halfHeight + outsideOffset, halfHeight - outsideOffset);
+        }
+        else
+        {
+            approachPoint.x += Mathf.Clamp(offset.x, -halfWidth + outsideOffset, halfWidth - outsideOffset);
+            approachPoint.y += offset.y >= 0f ? halfHeight - outsideOffset : -halfHeight + outsideOffset;
+        }
+
+        approachPoint.z = buildPoint.z;
+        return approachPoint;
+    }
     private void HandleBuildPlacement()
     {
         if (_mouse == null)
@@ -270,21 +304,25 @@ public class PlayerUnitController : MonoBehaviour
             return;
         }
 
-        LogBuild($"Выбрана точка строительства {_pendingBuildingData.DisplayName}: {point}");
+        Vector3 approachPoint = CalculateBuildApproachPoint(point, firstWorker.transform.position);
+
+        LogBuild($"Выбрана точка строительства {_pendingBuildingData.DisplayName}: {point}, точка подхода: {approachPoint}");
 
         for (int i = 0; i < _selectedWorkers.Count; i++)
         {
             if (_selectedWorkers[i] == null)
                 continue;
 
-            _selectedWorkers[i].StartPendingBuild(_pendingBuildingData, point, _localPlayerId, _selectedWorkers[i].Unit.TeamColor, _buildingPlacementSystem);
+            Vector3 workerApproachPoint = CalculateBuildApproachPoint(point, _selectedWorkers[i].transform.position);
+            _selectedWorkers[i].StartPendingBuild(_pendingBuildingData, point, workerApproachPoint, _localPlayerId, _selectedWorkers[i].Unit.TeamColor, _buildingPlacementSystem);
         }
 
-        var moveOrders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, point);
+        var moveOrders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, approachPoint);
         ApplyOrders(moveOrders);
 
         CancelBuildMode();
     }
+
     private void UpdateBuildPreview()
     {
         if (_buildingPlacementPreview == null)
@@ -364,38 +402,7 @@ public class PlayerUnitController : MonoBehaviour
 
         return null;
     }
-    private bool TryAssignWorkersToConstructionSiteUnderCursor()
-    {
-        if (_camera == null)
-            _camera = Camera.main;
 
-        if (_camera == null || _mouse == null)
-            return false;
-
-        if (_selectedWorkers.Count == 0)
-            return false;
-
-        var worldPoint = GetMouseWorldPoint();
-        var hit = Physics2D.OverlapPoint(worldPoint);
-        if (hit == null)
-            return false;
-
-        ConstructionSite site = hit.GetComponentInParent<ConstructionSite>();
-        if (site == null)
-            return false;
-
-        LogBuild($"Назначение рабочих на существующую стройку: {site.BuildingData.DisplayName}");
-
-        for (int i = 0; i < _selectedWorkers.Count; i++)
-        {
-            if (_selectedWorkers[i] == null)
-                continue;
-
-            _selectedWorkers[i].AssignToSite(site);
-        }
-
-        return true;
-    }
     private void HandleContextRightClick()
     {
         if (TryAssignWorkersToConstructionSiteUnderCursor())
@@ -435,9 +442,47 @@ public class PlayerUnitController : MonoBehaviour
         }
     }
 
+    private bool TryAssignWorkersToConstructionSiteUnderCursor()
+    {
+        if (_camera == null)
+            _camera = Camera.main;
+
+        if (_camera == null || _mouse == null)
+            return false;
+
+        if (_selectedWorkers.Count == 0)
+            return false;
+
+        var worldPoint = GetMouseWorldPoint();
+        var hit = Physics2D.OverlapPoint(worldPoint);
+        if (hit == null)
+            return false;
+
+        ConstructionSite site = hit.GetComponentInParent<ConstructionSite>();
+        if (site == null)
+            return false;
+
+        LogBuild($"Назначение рабочих на существующую стройку: {site.BuildingData.DisplayName}");
+
+        for (int i = 0; i < _selectedWorkers.Count; i++)
+        {
+            if (_selectedWorkers[i] == null)
+                continue;
+
+            _selectedWorkers[i].AssignToSite(site);
+        }
+
+        Vector3 targetPoint = site.GetClosestBuildPerimeterPoint(GetFirstSelectedWorker().transform.position);
+        var moveOrders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, targetPoint);
+        ApplyOrders(moveOrders);
+
+        return true;
+    }
+
     private void IssueMoveOrder()
     {
         CancelSelectedWorkersConstructionOrders();
+
         if (_groundClickRaycaster == null)
             return;
 
@@ -452,6 +497,7 @@ public class PlayerUnitController : MonoBehaviour
     private void IssuePatrolOrder()
     {
         CancelSelectedWorkersConstructionOrders();
+
         if (_groundClickRaycaster == null)
             return;
 
@@ -466,6 +512,7 @@ public class PlayerUnitController : MonoBehaviour
     private void IssueAttackOrder()
     {
         CancelSelectedWorkersConstructionOrders();
+
         var attackTarget = GetAttackTargetUnderCursor();
         if (attackTarget != null)
         {
@@ -489,6 +536,7 @@ public class PlayerUnitController : MonoBehaviour
     private void IssueRepairOrder()
     {
         CancelSelectedWorkersConstructionOrders();
+
         if (!AreAllSelectedWorkers())
         {
             _inputMode = InputMode.Default;

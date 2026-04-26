@@ -3,8 +3,6 @@ using UnityEngine;
 public class UnitMovementSystem
 {
     private const float StoppingDistanceMultiplier = 0.2f;
-    private const float ArrivalSlowdownMultiplier = 3.5f;
-    private const float VelocitySmoothTime = 0.08f;
 
     public bool MoveTo(UnitContext context, Vector3 targetPosition, float deltaTime)
     {
@@ -17,6 +15,7 @@ public class UnitMovementSystem
 
         if (distanceToTarget <= stoppingDistance)
         {
+            context.Transform.position = new Vector3(targetPosition.x, targetPosition.y, currentPosition.z);
             context.IsMoving = false;
             context.MoveDirection = Vector3.zero;
             context.CurrentVelocity = Vector3.zero;
@@ -24,33 +23,53 @@ public class UnitMovementSystem
         }
 
         var desiredDirection = distanceToTarget > 0.0001f ? toTarget / distanceToTarget : Vector3.zero;
-        var separation = CalculateSeparation(context);
-        var steering = desiredDirection + separation * context.Data.SeparationWeight;
 
-        if (steering.sqrMagnitude <= 0.0001f)
-            steering = desiredDirection;
+        var shouldUseLocalAvoidance = ShouldUseLocalAvoidance(context);
+        var steering = desiredDirection;
 
-        steering.Normalize();
+        if (shouldUseLocalAvoidance)
+        {
+            var separation = CalculateSeparation(context);
+            steering = desiredDirection + separation * context.Data.SeparationWeight;
 
-        var desiredSpeed = context.Data.MoveSpeed;
-        var slowdownDistance = Mathf.Max(stoppingDistance * ArrivalSlowdownMultiplier, 0.5f);
+            if (steering.sqrMagnitude <= 0.0001f)
+                steering = desiredDirection;
 
-        if (distanceToTarget < slowdownDistance)
-            desiredSpeed *= distanceToTarget / slowdownDistance;
+            steering.Normalize();
+        }
 
-        var desiredVelocity = steering * desiredSpeed;
-        var smoothedVelocity = Vector3.Lerp(context.CurrentVelocity, desiredVelocity, Mathf.Clamp01(deltaTime / VelocitySmoothTime));
-        smoothedVelocity.z = 0f;
+        var moveSpeed = context.Data.MoveSpeed;
+        var step = moveSpeed * deltaTime;
 
-        var nextPosition = currentPosition + smoothedVelocity * deltaTime;
+        if (step >= distanceToTarget - stoppingDistance)
+        {
+            var clampedPosition = currentPosition + steering * Mathf.Max(distanceToTarget - stoppingDistance, 0f);
+            clampedPosition.z = currentPosition.z;
+
+            context.Transform.position = clampedPosition;
+            context.CurrentVelocity = Vector3.zero;
+            context.IsMoving = false;
+            context.MoveDirection = Vector3.zero;
+
+            if (shouldUseLocalAvoidance)
+                ResolveOverlaps(context);
+
+            return true;
+        }
+
+        var velocity = steering * moveSpeed;
+        velocity.z = 0f;
+
+        var nextPosition = currentPosition + velocity * deltaTime;
         nextPosition.z = currentPosition.z;
 
         context.Transform.position = nextPosition;
-        context.CurrentVelocity = smoothedVelocity;
-        context.IsMoving = smoothedVelocity.sqrMagnitude > 0.0001f;
-        context.MoveDirection = context.IsMoving ? smoothedVelocity.normalized : Vector3.zero;
+        context.CurrentVelocity = velocity;
+        context.IsMoving = true;
+        context.MoveDirection = velocity.normalized;
 
-        ResolveOverlaps(context);
+        if (shouldUseLocalAvoidance)
+            ResolveOverlaps(context);
 
         return false;
     }
@@ -60,6 +79,18 @@ public class UnitMovementSystem
         context.IsMoving = false;
         context.MoveDirection = Vector3.zero;
         context.CurrentVelocity = Vector3.zero;
+    }
+
+    private bool ShouldUseLocalAvoidance(UnitContext context)
+    {
+        if (context == null || context.Owner == null)
+            return true;
+
+        var workerConstructionAgent = context.Owner.GetComponent<WorkerConstructionAgent>();
+        if (workerConstructionAgent == null)
+            return true;
+
+        return !workerConstructionAgent.DisableLocalAvoidance;
     }
 
     private Vector3 CalculateSeparation(UnitContext context)

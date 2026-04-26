@@ -10,6 +10,8 @@ public class ConstructionSite : MonoBehaviour
     [SerializeField] private bool _isCompleted;
     [SerializeField] private bool _enableDebugLogs = true;
     [SerializeField] private Transform _workPoint;
+    [SerializeField] private Collider2D _buildCollider;
+    [SerializeField] private float _buildPerimeterPadding = 0.6f;
 
     private readonly List<ConstructionWorkerSlot> _workers = new List<ConstructionWorkerSlot>();
 
@@ -88,7 +90,6 @@ public class ConstructionSite : MonoBehaviour
         CleanupWorkers();
 
         int activeWorkers = GetActiveWorkersCount();
-        Debug.Log($"ConstructionSite {_buildingData.DisplayName}: activeWorkers = {activeWorkers}, progress = {_currentProgress}", this);
 
         if (activeWorkers <= 0)
             return;
@@ -100,7 +101,71 @@ public class ConstructionSite : MonoBehaviour
             _currentProgress = _buildingData.BuildTime;
             CompleteConstruction();
         }
+    }
 
+    public bool IsPointInBuildPerimeter(Vector3 point)
+    {
+        if (_buildCollider != null)
+        {
+            Bounds bounds = _buildCollider.bounds;
+            bounds.Expand(_buildPerimeterPadding * 2f);
+            point.z = bounds.center.z;
+            return bounds.Contains(point);
+        }
+
+        Vector3 center = transform.position;
+        float halfSize = 1.5f + _buildPerimeterPadding;
+
+        return point.x >= center.x - halfSize &&
+               point.x <= center.x + halfSize &&
+               point.y >= center.y - halfSize &&
+               point.y <= center.y + halfSize;
+    }
+
+    public Vector3 GetClosestBuildPerimeterPoint(Vector3 fromPosition)
+    {
+        if (_buildCollider != null)
+        {
+            Bounds bounds = _buildCollider.bounds;
+            bounds.Expand(_buildPerimeterPadding * 2f);
+
+            float x = Mathf.Clamp(fromPosition.x, bounds.min.x, bounds.max.x);
+            float y = Mathf.Clamp(fromPosition.y, bounds.min.y, bounds.max.y);
+
+            Vector3 point = new Vector3(x, y, fromPosition.z);
+
+            if (bounds.Contains(point))
+            {
+                float left = Mathf.Abs(point.x - bounds.min.x);
+                float right = Mathf.Abs(bounds.max.x - point.x);
+                float bottom = Mathf.Abs(point.y - bounds.min.y);
+                float top = Mathf.Abs(bounds.max.y - point.y);
+
+                float min = Mathf.Min(left, right, bottom, top);
+
+                if (min == left)
+                    point.x = bounds.min.x;
+                else if (min == right)
+                    point.x = bounds.max.x;
+                else if (min == bottom)
+                    point.y = bounds.min.y;
+                else
+                    point.y = bounds.max.y;
+            }
+
+            point.z = fromPosition.z;
+            return point;
+        }
+
+        Vector3 direction = fromPosition - transform.position;
+        direction.z = 0f;
+
+        if (direction.sqrMagnitude <= 0.0001f)
+            direction = Vector3.down;
+
+        Vector3 result = transform.position + direction.normalized * (1.5f + _buildPerimeterPadding);
+        result.z = fromPosition.z;
+        return result;
     }
 
     private void CompleteConstruction()

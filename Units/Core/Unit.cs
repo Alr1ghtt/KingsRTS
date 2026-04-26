@@ -19,30 +19,32 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     [SerializeField] private int _ownerPlayerId;
     [SerializeField] private TeamColor _teamColor;
     [SerializeField] private float _moveSpeed = 3f;
-    public Animator Animator => _animator;
-    public string IdleAnimationStateName => _idleAnimationStateName;
-    public string RunAnimationStateName => _runAnimationStateName;
-    public string BuildAnimationStateName => _buildAnimationStateName;
-    public UnitType UnitType => _unitType;
-    public int OwnerPlayerId => _ownerPlayerId;
-    public TeamColor TeamColor => _teamColor;
-    public float MoveSpeed => _moveSpeed;
-
-    public bool IsWorker()
-    {
-        return _unitType == UnitType.Worker;
-    }
 
     private UnitContext _context;
     private UnitStateMachine _stateMachine;
     private UnitBrain _brain;
     private UnitSelectionMarker _selectionMarker;
+    private WorkerConstructionAgent _workerConstructionAgent;
 
     private bool _lastMovingState;
     private int _idleAnimationStateHash;
     private int _runAnimationStateHash;
+    private int _buildAnimationStateHash;
     private bool _hasIdleAnimation;
     private bool _hasRunAnimation;
+    private bool _hasBuildAnimation;
+
+    public Animator Animator => _animator;
+    public string IdleAnimationStateName => _idleAnimationStateName;
+    public string RunAnimationStateName => _runAnimationStateName;
+    public string BuildAnimationStateName => _buildAnimationStateName;
+    public int AnimationLayerIndex => _animationLayerIndex;
+    public float AnimationCrossFadeDuration => _animationCrossFadeDuration;
+
+    public UnitType UnitType => _unitType;
+    public int OwnerPlayerId => _ownerPlayerId;
+    public TeamColor TeamColor => _teamColor;
+    public float MoveSpeed => _moveSpeed;
 
     public UnitContext Context => _context;
     public UnitData Data => _config.Data;
@@ -69,6 +71,110 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
         Tick(Time.deltaTime);
     }
 
+    public bool IsWorker()
+    {
+        return _unitType == UnitType.Worker;
+    }
+
+    public void ApplyCommand(UnitCommand command)
+    {
+        _brain.ApplyCommand(command);
+    }
+
+    public void SetSelected(bool selected)
+    {
+        _context.IsSelected = selected;
+
+        if (_selectionMarker != null)
+            _selectionMarker.SetSelected(selected);
+    }
+
+    public void SetPlayerId(int playerId)
+    {
+        _playerId = playerId;
+        _context.PlayerId = playerId;
+    }
+
+    public void TakeDamage(float damage)
+    {
+        var finalDamage = Mathf.Max(damage - Data.Armor, 0f);
+        _context.CurrentHealth -= finalDamage;
+
+        if (_context.CurrentHealth <= 0f)
+            Destroy(gameObject);
+    }
+
+    public void Repair(float amount)
+    {
+        _context.CurrentHealth = Mathf.Min(_context.CurrentHealth + amount, Data.MaxHealth);
+    }
+
+    public bool HasAnimationState(string stateName)
+    {
+        if (_animator == null)
+            return false;
+
+        if (string.IsNullOrWhiteSpace(stateName))
+            return false;
+
+        if (_animationLayerIndex < 0 || _animationLayerIndex >= _animator.layerCount)
+            return false;
+
+        int stateHash = Animator.StringToHash(stateName);
+        return _animator.HasState(_animationLayerIndex, stateHash);
+    }
+
+    public bool IsCurrentAnimationState(string stateName)
+    {
+        if (_animator == null)
+            return false;
+
+        if (string.IsNullOrWhiteSpace(stateName))
+            return false;
+
+        if (_animationLayerIndex < 0 || _animationLayerIndex >= _animator.layerCount)
+            return false;
+
+        int stateHash = Animator.StringToHash(stateName);
+        AnimatorStateInfo stateInfo = _animator.GetCurrentAnimatorStateInfo(_animationLayerIndex);
+        AnimatorTransitionInfo transitionInfo = _animator.GetAnimatorTransitionInfo(_animationLayerIndex);
+
+        if (_animator.IsInTransition(_animationLayerIndex))
+            return transitionInfo.fullPathHash == stateHash || transitionInfo.nameHash == stateHash;
+
+        return stateInfo.shortNameHash == stateHash || stateInfo.fullPathHash == stateHash;
+    }
+
+    public void PlayAnimationState(string stateName)
+    {
+        if (_animator == null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(stateName))
+            return;
+
+        if (!HasAnimationState(stateName))
+            return;
+
+        int stateHash = Animator.StringToHash(stateName);
+        _animator.CrossFade(stateHash, _animationCrossFadeDuration, _animationLayerIndex);
+    }
+
+    public void PlayAnimationStateImmediate(string stateName)
+    {
+        if (_animator == null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(stateName))
+            return;
+
+        if (!HasAnimationState(stateName))
+            return;
+
+        int stateHash = Animator.StringToHash(stateName);
+        _animator.Play(stateHash, _animationLayerIndex, 0f);
+    }
+
     private void Initialize()
     {
         _context = new UnitContext();
@@ -79,12 +185,15 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
         _brain.Initialize(_context, _stateMachine);
 
         _selectionMarker = GetComponent<UnitSelectionMarker>();
+        _workerConstructionAgent = GetComponent<WorkerConstructionAgent>();
 
         _idleAnimationStateHash = Animator.StringToHash(_idleAnimationStateName);
         _runAnimationStateHash = Animator.StringToHash(_runAnimationStateName);
+        _buildAnimationStateHash = Animator.StringToHash(_buildAnimationStateName);
 
         _hasIdleAnimation = HasAnimationState(_idleAnimationStateHash);
         _hasRunAnimation = HasAnimationState(_runAnimationStateHash);
+        _hasBuildAnimation = HasAnimationState(_buildAnimationStateName);
 
         _lastMovingState = false;
         PlayIdleAnimationImmediate();
@@ -123,6 +232,9 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
         if (_animator == null)
             return;
 
+        if (IsConstructionAnimationLocked())
+            return;
+
         if (_context.IsMoving == _lastMovingState)
             return;
 
@@ -132,6 +244,14 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
             PlayRunAnimation();
         else
             PlayIdleAnimation();
+    }
+
+    private bool IsConstructionAnimationLocked()
+    {
+        if (_workerConstructionAgent == null)
+            return false;
+
+        return _workerConstructionAgent.IsBuildingAnimationLocked;
     }
 
     private void PlayIdleAnimationImmediate()
@@ -176,39 +296,6 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
             return false;
 
         return _animator.HasState(_animationLayerIndex, stateHash);
-    }
-
-    public void ApplyCommand(UnitCommand command)
-    {
-        _brain.ApplyCommand(command);
-    }
-
-    public void SetSelected(bool selected)
-    {
-        _context.IsSelected = selected;
-
-        if (_selectionMarker != null)
-            _selectionMarker.SetSelected(selected);
-    }
-
-    public void SetPlayerId(int playerId)
-    {
-        _playerId = playerId;
-        _context.PlayerId = playerId;
-    }
-
-    public void TakeDamage(float damage)
-    {
-        var finalDamage = Mathf.Max(damage - Data.Armor, 0f);
-        _context.CurrentHealth -= finalDamage;
-
-        if (_context.CurrentHealth <= 0f)
-            Destroy(gameObject);
-    }
-
-    public void Repair(float amount)
-    {
-        _context.CurrentHealth = Mathf.Min(_context.CurrentHealth + amount, Data.MaxHealth);
     }
 
     private void OnDrawGizmosSelected()

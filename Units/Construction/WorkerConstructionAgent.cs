@@ -4,15 +4,12 @@ using UnityEngine;
 public class WorkerConstructionAgent : MonoBehaviour
 {
     [SerializeField] private float _buildRange = 1.5f;
+    [SerializeField] private float _leaveBuildRangeDistance = 2.25f;
+    [SerializeField] private Vector2 _pendingBuildAreaSize = new Vector2(2.664385f, 2.664385f);
+    [SerializeField] private Vector2 _pendingBuildAreaOffset = new Vector2(0.008683f, 0f);
+    [SerializeField] private float _pendingBuildAreaPadding = 0.4f;
     [SerializeField] private bool _enableDebugLogs = true;
-
-    private enum WorkerAnimationState
-    {
-        None,
-        Idle,
-        Run,
-        Build
-    }
+    [SerializeField] private bool _forceBuildAnimationEveryFrame = true;
 
     private Unit _unit;
     private BuildingPlacementSystem _buildingPlacementSystem;
@@ -20,31 +17,43 @@ public class WorkerConstructionAgent : MonoBehaviour
 
     private BuildingData _pendingBuildingData;
     private Vector3 _pendingBuildPoint;
+    private Vector3 _pendingApproachPoint;
     private int _pendingOwnerPlayerId;
     private TeamColor _pendingTeamColor;
     private bool _hasPendingBuild;
-
-    private WorkerAnimationState _currentAnimationState;
+    private bool _isBuildingAnimationLocked;
+    private bool _buildAnimationStarted;
+    private bool _wasCancelled;
 
     public Unit Unit => _unit;
     public ConstructionSite AssignedSite => _assignedSite;
     public float BuildRange => _buildRange;
     public bool HasPendingBuild => _hasPendingBuild;
+    public bool DisableLocalAvoidance => _assignedSite != null;
+    public bool IsBuilding => _assignedSite != null && !_assignedSite.IsCompleted && !_wasCancelled;
+    public bool IsActivelyBuilding => IsBuilding && IsInBuildRange();
+    public bool IsBuildingAnimationLocked => _isBuildingAnimationLocked;
+    public Vector3 PendingApproachPoint => _pendingApproachPoint;
 
     private void Awake()
     {
         _unit = GetComponent<Unit>();
         ResetConstructionState();
-        SetIdleAnimationIfNeeded();
     }
 
     private void Update()
     {
+        if (_wasCancelled)
+        {
+            StopBuildAnimationLock();
+            return;
+        }
+
         if (_hasPendingBuild && _assignedSite != null)
         {
             Log($"Рабочий {name}: конфликтное состояние, сброс");
             ResetConstructionState();
-            SetIdleAnimationIfNeeded();
+            StopBuildAnimationLock();
             return;
         }
 
@@ -56,7 +65,7 @@ public class WorkerConstructionAgent : MonoBehaviour
 
         if (_assignedSite == null)
         {
-            SetIdleAnimationIfNeeded();
+            StopBuildAnimationLock();
             return;
         }
 
@@ -64,17 +73,23 @@ public class WorkerConstructionAgent : MonoBehaviour
         {
             Log($"Рабочий {name}: стройка завершена, очистка");
             ResetAssignedSiteOnly();
-            SetIdleAnimationIfNeeded();
+            StopBuildAnimationLock();
             return;
         }
 
         if (IsInBuildRange())
         {
-            SetBuildAnimationIfNeeded();
+            HoldBuildAnimation();
             return;
         }
 
-        SetRunAnimationIfNeeded();
+        if (!IsFarFromAssignedSite())
+        {
+            HoldBuildAnimation();
+            return;
+        }
+
+        StopBuildAnimationLock();
     }
 
     public bool IsAssignedTo(ConstructionSite site)
@@ -82,23 +97,26 @@ public class WorkerConstructionAgent : MonoBehaviour
         return _assignedSite == site;
     }
 
-    public void StartPendingBuild(BuildingData buildingData, Vector3 buildPoint, int ownerPlayerId, TeamColor teamColor, BuildingPlacementSystem placementSystem)
+    public void StartPendingBuild(BuildingData buildingData, Vector3 buildPoint, Vector3 approachPoint, int ownerPlayerId, TeamColor teamColor, BuildingPlacementSystem placementSystem)
     {
         if (buildingData == null)
             return;
 
         ResetConstructionState();
+        StopBuildAnimationLock();
 
         _buildingPlacementSystem = placementSystem;
         _pendingBuildingData = buildingData;
         _pendingBuildPoint = buildPoint;
         _pendingBuildPoint.z = transform.position.z;
+        _pendingApproachPoint = approachPoint;
+        _pendingApproachPoint.z = transform.position.z;
         _pendingOwnerPlayerId = ownerPlayerId;
         _pendingTeamColor = teamColor;
         _hasPendingBuild = true;
+        _wasCancelled = false;
 
-        SetRunAnimationIfNeeded();
-        Log($"Рабочий {name}: получил приказ строить {_pendingBuildingData.DisplayName} в точке {_pendingBuildPoint}");
+        Log($"Рабочий {name}: получил приказ строить {_pendingBuildingData.DisplayName} в точке {_pendingBuildPoint}, точка подхода {_pendingApproachPoint}");
     }
 
     public void AssignToSite(ConstructionSite site)
@@ -118,12 +136,13 @@ public class WorkerConstructionAgent : MonoBehaviour
             _assignedSite.RemoveWorker(this);
 
         _assignedSite = site;
+        _wasCancelled = false;
 
         if (!_assignedSite.AssignWorker(this))
         {
             Log($"Рабочий {name}: не удалось назначиться на стройку");
             ResetAssignedSiteOnly();
-            SetIdleAnimationIfNeeded();
+            StopBuildAnimationLock();
             return;
         }
 
@@ -136,7 +155,7 @@ public class WorkerConstructionAgent : MonoBehaviour
             _assignedSite.RemoveWorker(this);
 
         ResetAssignedSiteOnly();
-        SetIdleAnimationIfNeeded();
+        StopBuildAnimationLock();
     }
 
     public void CancelConstructionOrder()
@@ -145,7 +164,10 @@ public class WorkerConstructionAgent : MonoBehaviour
             _assignedSite.RemoveWorker(this);
 
         ResetConstructionState();
-        SetIdleAnimationIfNeeded();
+        StopBuildAnimationLock();
+
+        _wasCancelled = true;
+
         Log($"Рабочий {name}: приказ на строительство отменен");
     }
 
@@ -154,8 +176,7 @@ public class WorkerConstructionAgent : MonoBehaviour
         if (_assignedSite == null)
             return false;
 
-        float distance = Vector3.Distance(transform.position, _assignedSite.WorkPoint);
-        return distance <= _buildRange;
+        return _assignedSite.IsPointInBuildPerimeter(transform.position);
     }
 
     public void OnConstructionCompleted(ConstructionSite site)
@@ -165,29 +186,20 @@ public class WorkerConstructionAgent : MonoBehaviour
 
         Log($"Рабочий {name}: строительство завершено");
 
-        _assignedSite = null;
-        _hasPendingBuild = false;
-        _pendingBuildingData = null;
-        _pendingBuildPoint = Vector3.zero;
-
-        SetIdleAnimationIfNeeded();
+        ResetConstructionState();
+        StopBuildAnimationLock();
     }
 
     private void UpdatePendingBuild()
     {
-        float distanceToBuildPoint = Vector3.Distance(transform.position, _pendingBuildPoint);
-
-        if (distanceToBuildPoint > _buildRange)
-        {
-            SetRunAnimationIfNeeded();
+        if (!IsInPendingBuildPerimeter(transform.position))
             return;
-        }
 
         if (_buildingPlacementSystem == null)
         {
             Log($"Рабочий {name}: отсутствует BuildingPlacementSystem");
             ResetConstructionState();
-            SetIdleAnimationIfNeeded();
+            StopBuildAnimationLock();
             return;
         }
 
@@ -195,14 +207,84 @@ public class WorkerConstructionAgent : MonoBehaviour
         {
             Log($"Рабочий {name}: не удалось создать стройплощадку {_pendingBuildingData.DisplayName}");
             ResetConstructionState();
-            SetIdleAnimationIfNeeded();
+            StopBuildAnimationLock();
             return;
         }
 
-        Log($"Рабочий {name}: прибыл на точку, создана стройплощадка {_pendingBuildingData.DisplayName}");
+        Log($"Рабочий {name}: прибыл к периметру, создана стройплощадка {_pendingBuildingData.DisplayName}");
 
         ResetPendingBuildOnly();
         AssignToSite(site);
+    }
+
+    private bool IsInPendingBuildPerimeter(Vector3 point)
+    {
+        Vector3 center = _pendingBuildPoint + new Vector3(_pendingBuildAreaOffset.x, _pendingBuildAreaOffset.y, 0f);
+
+        float halfWidth = _pendingBuildAreaSize.x * 0.5f + _pendingBuildAreaPadding;
+        float halfHeight = _pendingBuildAreaSize.y * 0.5f + _pendingBuildAreaPadding;
+
+        return point.x >= center.x - halfWidth &&
+               point.x <= center.x + halfWidth &&
+               point.y >= center.y - halfHeight &&
+               point.y <= center.y + halfHeight;
+    }
+
+    private bool IsFarFromAssignedSite()
+    {
+        if (_assignedSite == null)
+            return true;
+
+        float distance = Vector3.Distance(transform.position, _assignedSite.transform.position);
+        return distance > _leaveBuildRangeDistance;
+    }
+
+    private void HoldBuildAnimation()
+    {
+        _isBuildingAnimationLocked = true;
+
+        if (_unit == null)
+            return;
+
+        if (_unit.Animator == null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(_unit.BuildAnimationStateName))
+            return;
+
+        if (!_unit.HasAnimationState(_unit.BuildAnimationStateName))
+        {
+            Log($"Рабочий {name}: в Animator нет состояния '{_unit.BuildAnimationStateName}'");
+            return;
+        }
+
+        if (!_buildAnimationStarted)
+        {
+            _unit.PlayAnimationStateImmediate(_unit.BuildAnimationStateName);
+            _buildAnimationStarted = true;
+            Log($"Рабочий {name}: включена анимация строительства");
+            return;
+        }
+
+        if (_forceBuildAnimationEveryFrame)
+        {
+            if (!_unit.IsCurrentAnimationState(_unit.BuildAnimationStateName))
+                _unit.PlayAnimationStateImmediate(_unit.BuildAnimationStateName);
+
+            return;
+        }
+
+        if (!_unit.IsCurrentAnimationState(_unit.BuildAnimationStateName))
+            _unit.PlayAnimationState(_unit.BuildAnimationStateName);
+    }
+
+    private void StopBuildAnimationLock()
+    {
+        if (!_isBuildingAnimationLocked && !_buildAnimationStarted)
+            return;
+
+        _isBuildingAnimationLocked = false;
+        _buildAnimationStarted = false;
     }
 
     private void ResetConstructionState()
@@ -210,6 +292,7 @@ public class WorkerConstructionAgent : MonoBehaviour
         _hasPendingBuild = false;
         _pendingBuildingData = null;
         _pendingBuildPoint = Vector3.zero;
+        _pendingApproachPoint = Vector3.zero;
         _pendingOwnerPlayerId = 0;
         _pendingTeamColor = default;
         _assignedSite = null;
@@ -220,6 +303,7 @@ public class WorkerConstructionAgent : MonoBehaviour
         _hasPendingBuild = false;
         _pendingBuildingData = null;
         _pendingBuildPoint = Vector3.zero;
+        _pendingApproachPoint = Vector3.zero;
         _pendingOwnerPlayerId = 0;
         _pendingTeamColor = default;
     }
@@ -227,58 +311,6 @@ public class WorkerConstructionAgent : MonoBehaviour
     private void ResetAssignedSiteOnly()
     {
         _assignedSite = null;
-    }
-
-    private void SetIdleAnimationIfNeeded()
-    {
-        if (_currentAnimationState == WorkerAnimationState.Idle)
-            return;
-
-        PlayAnimation(_unit.IdleAnimationStateName, WorkerAnimationState.Idle);
-    }
-
-    private void SetRunAnimationIfNeeded()
-    {
-        if (_currentAnimationState == WorkerAnimationState.Run)
-            return;
-
-        PlayAnimation(_unit.RunAnimationStateName, WorkerAnimationState.Run);
-    }
-
-    private void SetBuildAnimationIfNeeded()
-    {
-        if (_currentAnimationState == WorkerAnimationState.Build)
-            return;
-
-        PlayAnimation(_unit.BuildAnimationStateName, WorkerAnimationState.Build);
-        Log($"Рабочий {name}: начал строить");
-    }
-
-    private void PlayAnimation(string stateName, WorkerAnimationState state)
-    {
-        if (_unit.Animator == null)
-            return;
-
-        if (string.IsNullOrWhiteSpace(stateName))
-            return;
-
-        if (!HasState(0, stateName))
-        {
-            Log($"Рабочий {name}: в Animator нет состояния '{stateName}'");
-            return;
-        }
-
-        _unit.Animator.CrossFade(stateName, 0.05f, 0);
-        _currentAnimationState = state;
-    }
-
-    private bool HasState(int layerIndex, string stateName)
-    {
-        if (_unit.Animator == null)
-            return false;
-
-        int stateHash = Animator.StringToHash(stateName);
-        return _unit.Animator.HasState(layerIndex, stateHash);
     }
 
     private void Log(string message)

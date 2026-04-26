@@ -3,6 +3,8 @@ using UnityEngine;
 public class BuildingPlacementPreview : MonoBehaviour
 {
     [SerializeField] private SpriteRenderer _renderer;
+    [SerializeField] private Color _previewColor = new Color(1f, 1f, 1f, 0.25f);
+    [SerializeField] private int _sortingOrder = 1000;
 
     public void Show(BuildingData buildingData, Vector3 worldPosition)
     {
@@ -27,8 +29,8 @@ public class BuildingPlacementPreview : MonoBehaviour
         }
 
         _renderer.sprite = buildingData.PreviewSprite;
-        _renderer.color = new Color(1f, 1f, 1f, 0.25f);
-        _renderer.sortingOrder = 1000;
+        _renderer.color = _previewColor;
+        _renderer.sortingOrder = _sortingOrder;
 
         Vector3 position = worldPosition;
         position.z = 0f;
