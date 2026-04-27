@@ -286,7 +286,23 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
 
         _animator.CrossFade(_runAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
     }
+    public void ForceRefreshAnimation()
+    {
+        if (_animator == null)
+            return;
 
+        if (_context == null)
+            return;
+
+        _lastMovingState = !_context.IsMoving;
+
+        if (_context.IsMoving)
+            PlayRunAnimation();
+        else
+            PlayIdleAnimation();
+
+        _lastMovingState = _context.IsMoving;
+    }
     private bool HasAnimationState(int stateHash)
     {
         if (_animator == null)

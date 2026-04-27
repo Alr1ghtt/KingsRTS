@@ -244,8 +244,8 @@ public class PlayerUnitController : MonoBehaviour
     {
         Vector2 buildAreaSize = new Vector2(2.664385f, 2.664385f);
         Vector2 buildAreaOffset = new Vector2(0.008683f, 0f);
-        float padding = 0.4f;
-        float outsideOffset = 0.15f;
+        float padding = 0.65f;
+        float insideOffset = 0.35f;
 
         Vector3 center = buildPoint + new Vector3(buildAreaOffset.x, buildAreaOffset.y, 0f);
         Vector3 offset = workerPosition - center;
@@ -261,13 +261,13 @@ public class PlayerUnitController : MonoBehaviour
 
         if (normalizedX > normalizedY)
         {
-            approachPoint.x += offset.x >= 0f ? halfWidth - outsideOffset : -halfWidth + outsideOffset;
-            approachPoint.y += Mathf.Clamp(offset.y, -halfHeight + outsideOffset, halfHeight - outsideOffset);
+            approachPoint.x += offset.x >= 0f ? halfWidth - insideOffset : -halfWidth + insideOffset;
+            approachPoint.y += Mathf.Clamp(offset.y, -halfHeight + insideOffset, halfHeight - insideOffset);
         }
         else
         {
-            approachPoint.x += Mathf.Clamp(offset.x, -halfWidth + outsideOffset, halfWidth - outsideOffset);
-            approachPoint.y += offset.y >= 0f ? halfHeight - outsideOffset : -halfHeight + outsideOffset;
+            approachPoint.x += Mathf.Clamp(offset.x, -halfWidth + insideOffset, halfWidth - insideOffset);
+            approachPoint.y += offset.y >= 0f ? halfHeight - insideOffset : -halfHeight + insideOffset;
         }
 
         approachPoint.z = buildPoint.z;
@@ -462,6 +462,10 @@ public class PlayerUnitController : MonoBehaviour
         if (site == null)
             return false;
 
+        WorkerConstructionAgent firstWorker = GetFirstSelectedWorker();
+        if (firstWorker == null)
+            return false;
+
         LogBuild($"Назначение рабочих на существующую стройку: {site.BuildingData.DisplayName}");
 
         for (int i = 0; i < _selectedWorkers.Count; i++)
@@ -472,13 +476,30 @@ public class PlayerUnitController : MonoBehaviour
             _selectedWorkers[i].AssignToSite(site);
         }
 
-        Vector3 targetPoint = site.GetClosestBuildPerimeterPoint(GetFirstSelectedWorker().transform.position);
+        Vector3 targetPoint = GetConstructionSiteApproachPoint(site, firstWorker.transform.position);
         var moveOrders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, targetPoint);
         ApplyOrders(moveOrders);
 
         return true;
     }
+    private Vector3 GetConstructionSiteApproachPoint(ConstructionSite site, Vector3 workerPosition)
+    {
+        if (site == null)
+            return workerPosition;
 
+        Vector3 targetPoint = site.GetClosestBuildPerimeterPoint(workerPosition);
+
+        Vector3 toCenter = site.transform.position - targetPoint;
+        toCenter.z = 0f;
+
+        if (toCenter.sqrMagnitude > 0.0001f)
+        {
+            targetPoint += toCenter.normalized * 0.35f;
+            targetPoint.z = site.transform.position.z;
+        }
+
+        return targetPoint;
+    }
     private void IssueMoveOrder()
     {
         CancelSelectedWorkersConstructionOrders();

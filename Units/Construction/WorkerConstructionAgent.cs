@@ -4,10 +4,11 @@ using UnityEngine;
 public class WorkerConstructionAgent : MonoBehaviour
 {
     [SerializeField] private float _buildRange = 1.5f;
+    [SerializeField] private float _pendingApproachArrivalDistance = 1.15f;
     [SerializeField] private float _leaveBuildRangeDistance = 2.25f;
     [SerializeField] private Vector2 _pendingBuildAreaSize = new Vector2(2.664385f, 2.664385f);
     [SerializeField] private Vector2 _pendingBuildAreaOffset = new Vector2(0.008683f, 0f);
-    [SerializeField] private float _pendingBuildAreaPadding = 0.4f;
+    [SerializeField] private float _pendingBuildAreaPadding = 0.65f;
     [SerializeField] private bool _enableDebugLogs = true;
     [SerializeField] private bool _forceBuildAnimationEveryFrame = true;
 
@@ -188,11 +189,14 @@ public class WorkerConstructionAgent : MonoBehaviour
 
         ResetConstructionState();
         StopBuildAnimationLock();
+
+        if (_unit != null)
+            _unit.ForceRefreshAnimation();
     }
 
     private void UpdatePendingBuild()
     {
-        if (!IsInPendingBuildPerimeter(transform.position))
+        if (!CanCreatePendingConstructionSite())
             return;
 
         if (_buildingPlacementSystem == null)
@@ -215,6 +219,15 @@ public class WorkerConstructionAgent : MonoBehaviour
 
         ResetPendingBuildOnly();
         AssignToSite(site);
+    }
+
+    private bool CanCreatePendingConstructionSite()
+    {
+        if (IsInPendingBuildPerimeter(transform.position))
+            return true;
+
+        float distanceToApproachPoint = Vector3.Distance(transform.position, _pendingApproachPoint);
+        return distanceToApproachPoint <= _pendingApproachArrivalDistance;
     }
 
     private bool IsInPendingBuildPerimeter(Vector3 point)
@@ -285,6 +298,9 @@ public class WorkerConstructionAgent : MonoBehaviour
 
         _isBuildingAnimationLocked = false;
         _buildAnimationStarted = false;
+
+        if (_unit != null)
+            _unit.ForceRefreshAnimation();
     }
 
     private void ResetConstructionState()
