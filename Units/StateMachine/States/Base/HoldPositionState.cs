@@ -15,26 +15,54 @@ public class HoldPositionState : IUnitState
     {
         _movementSystem.Stop(context);
         context.RepairTarget = null;
+        context.HasReturnTarget = false;
     }
 
     public void Update(UnitContext context, float deltaTime)
     {
-        if (!context.Data.CanAttack)
+        _combatSystem.UpdateAttack(context, _targetingSystem);
+
+        if (context.IsAttackAnimationLocked)
+            return;
+
+        if (!context.Owner.CanAttack)
         {
-            _movementSystem.Stop(context);
+            ReturnToHoldAnchor(context, deltaTime);
             return;
         }
 
         if (!_targetingSystem.IsValidAttackTarget(context, context.AttackTarget))
-            context.AttackTarget = _targetingSystem.FindClosestEnemy(context, context.Data.AttackRange);
+            context.AttackTarget = _targetingSystem.FindClosestEnemy(context, context.HoldAnchorPosition, context.Data.VisionRange);
 
-        if (_targetingSystem.IsInAttackRange(context, context.AttackTarget))
-            _combatSystem.TryAttack(context, context.AttackTarget);
+        if (_targetingSystem.IsValidAttackTarget(context, context.AttackTarget))
+        {
+            if (!_targetingSystem.IsInsideHoldLeash(context, context.AttackTarget.Position))
+            {
+                context.AttackTarget = null;
+                ReturnToHoldAnchor(context, deltaTime);
+                return;
+            }
 
-        _movementSystem.Stop(context);
+            if (_targetingSystem.IsInAttackRange(context, context.AttackTarget))
+            {
+                _movementSystem.Stop(context);
+                _combatSystem.TryAttack(context, context.AttackTarget);
+                return;
+            }
+
+            _movementSystem.MoveTo(context, context.AttackTarget.Position, deltaTime);
+            return;
+        }
+
+        ReturnToHoldAnchor(context, deltaTime);
     }
 
     public void Exit(UnitContext context)
     {
+    }
+
+    private void ReturnToHoldAnchor(UnitContext context, float deltaTime)
+    {
+        _movementSystem.MoveTo(context, context.HoldAnchorPosition, deltaTime);
     }
 }

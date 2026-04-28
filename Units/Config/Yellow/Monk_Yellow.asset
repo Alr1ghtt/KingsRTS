@@ -22,6 +22,15 @@ MonoBehaviour:
     _attackDamage: 10
     _moveSpeed: 3.5
     _visionRange: 8
+    _radius: 0.35
+    _separationWeight: 2.4
+    _separationRangeMultiplier: 2.2
+    _canAttack: 0
+    _canRepair: 0
+    _canBuild: 0
+    _canBeRepaired: 0
+    _repairRange: 1.1
+    _repairRate: 18
     _cost:
       _wool: 10
       _meat: 5

@@ -14,11 +14,17 @@ public class AttackMoveState : IUnitState
     public void Enter(UnitContext context)
     {
         context.RepairTarget = null;
+        context.HasReturnTarget = false;
     }
 
     public void Update(UnitContext context, float deltaTime)
     {
-        if (context.Data.CanAttack)
+        _combatSystem.UpdateAttack(context, _targetingSystem);
+
+        if (context.IsAttackAnimationLocked)
+            return;
+
+        if (context.Owner.CanAttack)
         {
             if (!_targetingSystem.IsValidAttackTarget(context, context.AttackTarget))
                 context.AttackTarget = _targetingSystem.FindClosestEnemy(context, context.Data.VisionRange);
@@ -26,10 +32,13 @@ public class AttackMoveState : IUnitState
             if (_targetingSystem.IsValidAttackTarget(context, context.AttackTarget))
             {
                 if (_targetingSystem.IsInAttackRange(context, context.AttackTarget))
+                {
+                    _movementSystem.Stop(context);
                     _combatSystem.TryAttack(context, context.AttackTarget);
-                else
-                    _movementSystem.MoveTo(context, context.AttackTarget.Position, deltaTime);
+                    return;
+                }
 
+                _movementSystem.MoveTo(context, context.AttackTarget.Position, deltaTime);
                 return;
             }
         }

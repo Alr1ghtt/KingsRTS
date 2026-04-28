@@ -10,8 +10,18 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     [SerializeField] private string _idleAnimationStateName = "Idle";
     [SerializeField] private string _runAnimationStateName = "Run";
     [SerializeField] private string _buildAnimationStateName = "Build";
+    [SerializeField] private string _attackAnimationStateName = "Attack";
+    [SerializeField] private string _warriorAttackAnimationStateNameA = "Attack1";
+    [SerializeField] private string _warriorAttackAnimationStateNameB = "Attack2";
+    [SerializeField] private string _spearmanAttackRightAnimationStateName = "AttackRight";
+    [SerializeField] private string _spearmanAttackUpAnimationStateName = "AttackUp";
+    [SerializeField] private string _spearmanAttackDownAnimationStateName = "AttackDown";
+    [SerializeField] private string _spearmanAttackUpRightAnimationStateName = "AttackUpRight";
+    [SerializeField] private string _spearmanAttackDownRightAnimationStateName = "AttackDownRight";
     [SerializeField] private float _animationCrossFadeDuration = 0.05f;
     [SerializeField] private int _animationLayerIndex;
+    [SerializeField] private GameObject _deathSmokePrefab;
+    [SerializeField] private float _deathSmokeLifetime = 2f;
     [SerializeField] private bool _drawAttackRange = true;
     [SerializeField] private bool _drawVisionRange = true;
 
@@ -30,14 +40,33 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     private int _idleAnimationStateHash;
     private int _runAnimationStateHash;
     private int _buildAnimationStateHash;
+    private int _attackAnimationStateHash;
+    private int _warriorAttackAnimationStateHashA;
+    private int _warriorAttackAnimationStateHashB;
+    private int _spearmanAttackRightAnimationStateHash;
+    private int _spearmanAttackUpAnimationStateHash;
+    private int _spearmanAttackDownAnimationStateHash;
+    private int _spearmanAttackUpRightAnimationStateHash;
+    private int _spearmanAttackDownRightAnimationStateHash;
     private bool _hasIdleAnimation;
     private bool _hasRunAnimation;
     private bool _hasBuildAnimation;
+    private bool _hasAttackAnimation;
+    private bool _hasWarriorAttackAnimationA;
+    private bool _hasWarriorAttackAnimationB;
+    private bool _hasSpearmanAttackRightAnimation;
+    private bool _hasSpearmanAttackUpAnimation;
+    private bool _hasSpearmanAttackDownAnimation;
+    private bool _hasSpearmanAttackUpRightAnimation;
+    private bool _hasSpearmanAttackDownRightAnimation;
+    private bool _useWarriorSecondAttack;
+    private bool _isDead;
 
     public Animator Animator => _animator;
     public string IdleAnimationStateName => _idleAnimationStateName;
     public string RunAnimationStateName => _runAnimationStateName;
     public string BuildAnimationStateName => _buildAnimationStateName;
+    public string AttackAnimationStateName => _attackAnimationStateName;
     public int AnimationLayerIndex => _animationLayerIndex;
     public float AnimationCrossFadeDuration => _animationCrossFadeDuration;
 
@@ -50,10 +79,11 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     public UnitData Data => _config.Data;
     public int PlayerId => _playerId;
     public bool SelectableByLocalPlayer => _selectableByLocalPlayer;
-    public bool IsAlive => _context != null && _context.CurrentHealth > 0f;
+    public bool IsAlive => !_isDead && _context != null && _context.CurrentHealth > 0f;
     public Vector3 Position => transform.position;
     public bool CanBeRepaired => Data.CanBeRepaired;
     public bool NeedsRepair => _context != null && _context.CurrentHealth < Data.MaxHealth;
+    public bool CanAttack => IsAlive && Data.CanAttack && _unitType != UnitType.Worker && _unitType != UnitType.Monk;
 
     private void Awake()
     {
@@ -97,15 +127,24 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
 
     public void TakeDamage(float damage)
     {
-        var finalDamage = Mathf.Max(damage - Data.Armor, 0f);
+        if (_isDead)
+            return;
+
+        if (damage <= 0f)
+            return;
+
+        var finalDamage = Mathf.Max(damage - Data.Armor, 1f);
         _context.CurrentHealth -= finalDamage;
 
         if (_context.CurrentHealth <= 0f)
-            Destroy(gameObject);
+            Die();
     }
 
     public void Repair(float amount)
     {
+        if (_isDead)
+            return;
+
         _context.CurrentHealth = Mathf.Min(_context.CurrentHealth + amount, Data.MaxHealth);
     }
 
@@ -175,6 +214,44 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
         _animator.Play(stateHash, _animationLayerIndex, 0f);
     }
 
+    public void PlayAttackAnimation(IAttackTarget target)
+    {
+        if (_animator == null)
+            return;
+
+        if (_unitType == UnitType.Warrior)
+        {
+            PlayWarriorAttackAnimation();
+            return;
+        }
+
+        if (_unitType == UnitType.Spearman)
+        {
+            PlaySpearmanAttackAnimation(target);
+            return;
+        }
+
+        PlayDefaultAttackAnimation();
+    }
+
+    public void ForceRefreshAnimation()
+    {
+        if (_animator == null)
+            return;
+
+        if (_context == null)
+            return;
+
+        _lastMovingState = !_context.IsMoving;
+
+        if (_context.IsMoving)
+            PlayRunAnimation();
+        else
+            PlayIdleAnimation();
+
+        _lastMovingState = _context.IsMoving;
+    }
+
     private void Initialize()
     {
         _context = new UnitContext();
@@ -190,19 +267,43 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
         _idleAnimationStateHash = Animator.StringToHash(_idleAnimationStateName);
         _runAnimationStateHash = Animator.StringToHash(_runAnimationStateName);
         _buildAnimationStateHash = Animator.StringToHash(_buildAnimationStateName);
+        _attackAnimationStateHash = Animator.StringToHash(_attackAnimationStateName);
+        _warriorAttackAnimationStateHashA = Animator.StringToHash(_warriorAttackAnimationStateNameA);
+        _warriorAttackAnimationStateHashB = Animator.StringToHash(_warriorAttackAnimationStateNameB);
+        _spearmanAttackRightAnimationStateHash = Animator.StringToHash(_spearmanAttackRightAnimationStateName);
+        _spearmanAttackUpAnimationStateHash = Animator.StringToHash(_spearmanAttackUpAnimationStateName);
+        _spearmanAttackDownAnimationStateHash = Animator.StringToHash(_spearmanAttackDownAnimationStateName);
+        _spearmanAttackUpRightAnimationStateHash = Animator.StringToHash(_spearmanAttackUpRightAnimationStateName);
+        _spearmanAttackDownRightAnimationStateHash = Animator.StringToHash(_spearmanAttackDownRightAnimationStateName);
 
         _hasIdleAnimation = HasAnimationState(_idleAnimationStateHash);
         _hasRunAnimation = HasAnimationState(_runAnimationStateHash);
         _hasBuildAnimation = HasAnimationState(_buildAnimationStateName);
+        _hasAttackAnimation = HasAnimationState(_attackAnimationStateHash);
+        _hasWarriorAttackAnimationA = HasAnimationState(_warriorAttackAnimationStateHashA);
+        _hasWarriorAttackAnimationB = HasAnimationState(_warriorAttackAnimationStateHashB);
+        _hasSpearmanAttackRightAnimation = HasAnimationState(_spearmanAttackRightAnimationStateHash);
+        _hasSpearmanAttackUpAnimation = HasAnimationState(_spearmanAttackUpAnimationStateHash);
+        _hasSpearmanAttackDownAnimation = HasAnimationState(_spearmanAttackDownAnimationStateHash);
+        _hasSpearmanAttackUpRightAnimation = HasAnimationState(_spearmanAttackUpRightAnimationStateHash);
+        _hasSpearmanAttackDownRightAnimation = HasAnimationState(_spearmanAttackDownRightAnimationStateHash);
 
         _lastMovingState = false;
+        _useWarriorSecondAttack = false;
+        _isDead = false;
         PlayIdleAnimationImmediate();
     }
 
     private void Tick(float deltaTime)
     {
+        if (_isDead)
+            return;
+
         if (_context.AttackCooldown > 0f)
             _context.AttackCooldown -= deltaTime;
+
+        if (_context.AttackWindupTimer > 0f)
+            _context.AttackWindupTimer -= deltaTime;
 
         _brain.Update(deltaTime);
         UpdateVisualDirection();
@@ -214,13 +315,30 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
         if (_visualRoot == null)
             return;
 
-        if (!_context.IsMoving)
+        if (_context.IsMoving)
+        {
+            var directionX = _context.MoveDirection.x;
+
+            if (Mathf.Abs(directionX) <= 0.001f)
+                return;
+
+            SetVisualDirection(directionX);
+            return;
+        }
+
+        if (_context.AttackTarget == null)
             return;
 
-        var directionX = _context.MoveDirection.x;
-        if (Mathf.Abs(directionX) <= 0.001f)
+        var attackDirectionX = _context.AttackTarget.Position.x - transform.position.x;
+
+        if (Mathf.Abs(attackDirectionX) <= 0.001f)
             return;
 
+        SetVisualDirection(attackDirectionX);
+    }
+
+    private void SetVisualDirection(float directionX)
+    {
         var scale = _visualRoot.localScale;
         var absX = Mathf.Abs(scale.x);
         scale.x = directionX < 0f ? -absX : absX;
@@ -233,6 +351,9 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
             return;
 
         if (IsConstructionAnimationLocked())
+            return;
+
+        if (_context.IsAttackAnimationLocked)
             return;
 
         if (_context.IsMoving == _lastMovingState)
@@ -252,6 +373,101 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
             return false;
 
         return _workerConstructionAgent.IsBuildingAnimationLocked;
+    }
+
+    private void PlayDefaultAttackAnimation()
+    {
+        if (!_hasAttackAnimation)
+            return;
+
+        _animator.CrossFade(_attackAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
+    }
+
+    private void PlayWarriorAttackAnimation()
+    {
+        if (_useWarriorSecondAttack && _hasWarriorAttackAnimationB)
+        {
+            _animator.CrossFade(_warriorAttackAnimationStateHashB, _animationCrossFadeDuration, _animationLayerIndex);
+            _useWarriorSecondAttack = false;
+            return;
+        }
+
+        if (_hasWarriorAttackAnimationA)
+        {
+            _animator.CrossFade(_warriorAttackAnimationStateHashA, _animationCrossFadeDuration, _animationLayerIndex);
+            _useWarriorSecondAttack = true;
+            return;
+        }
+
+        if (_hasWarriorAttackAnimationB)
+        {
+            _animator.CrossFade(_warriorAttackAnimationStateHashB, _animationCrossFadeDuration, _animationLayerIndex);
+            _useWarriorSecondAttack = false;
+            return;
+        }
+
+        PlayDefaultAttackAnimation();
+    }
+
+    private void PlaySpearmanAttackAnimation(IAttackTarget target)
+    {
+        if (target == null)
+        {
+            PlayDefaultAttackAnimation();
+            return;
+        }
+
+        var direction = target.Position - transform.position;
+        direction.z = 0f;
+
+        if (direction.sqrMagnitude <= 0.0001f)
+        {
+            PlayDefaultAttackAnimation();
+            return;
+        }
+
+        var absX = Mathf.Abs(direction.x);
+        var absY = Mathf.Abs(direction.y);
+        var normalizedX = absX <= 0.001f ? 0f : 1f;
+        var normalizedY = direction.y;
+
+        if (absY > absX * 1.35f)
+        {
+            if (normalizedY > 0f && _hasSpearmanAttackUpAnimation)
+            {
+                _animator.CrossFade(_spearmanAttackUpAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
+                return;
+            }
+
+            if (normalizedY < 0f && _hasSpearmanAttackDownAnimation)
+            {
+                _animator.CrossFade(_spearmanAttackDownAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
+                return;
+            }
+        }
+
+        if (absY > absX * 0.45f)
+        {
+            if (normalizedY > 0f && _hasSpearmanAttackUpRightAnimation)
+            {
+                _animator.CrossFade(_spearmanAttackUpRightAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
+                return;
+            }
+
+            if (normalizedY < 0f && _hasSpearmanAttackDownRightAnimation)
+            {
+                _animator.CrossFade(_spearmanAttackDownRightAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
+                return;
+            }
+        }
+
+        if (normalizedX > 0f && _hasSpearmanAttackRightAnimation)
+        {
+            _animator.CrossFade(_spearmanAttackRightAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
+            return;
+        }
+
+        PlayDefaultAttackAnimation();
     }
 
     private void PlayIdleAnimationImmediate()
@@ -286,23 +502,7 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
 
         _animator.CrossFade(_runAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
     }
-    public void ForceRefreshAnimation()
-    {
-        if (_animator == null)
-            return;
 
-        if (_context == null)
-            return;
-
-        _lastMovingState = !_context.IsMoving;
-
-        if (_context.IsMoving)
-            PlayRunAnimation();
-        else
-            PlayIdleAnimation();
-
-        _lastMovingState = _context.IsMoving;
-    }
     private bool HasAnimationState(int stateHash)
     {
         if (_animator == null)
@@ -312,6 +512,24 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
             return false;
 
         return _animator.HasState(_animationLayerIndex, stateHash);
+    }
+
+    private void Die()
+    {
+        if (_isDead)
+            return;
+
+        _isDead = true;
+
+        if (_deathSmokePrefab != null)
+        {
+            var smoke = Instantiate(_deathSmokePrefab, transform.position, Quaternion.identity);
+
+            if (_deathSmokeLifetime > 0f)
+                Destroy(smoke, _deathSmokeLifetime);
+        }
+
+        Destroy(gameObject);
     }
 
     private void OnDrawGizmosSelected()

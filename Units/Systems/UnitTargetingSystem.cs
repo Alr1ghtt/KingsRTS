@@ -4,14 +4,19 @@ public class UnitTargetingSystem
 {
     public IAttackTarget FindClosestEnemy(UnitContext context, float searchRange)
     {
+        return FindClosestEnemy(context, context.Transform.position, searchRange);
+    }
+
+    public IAttackTarget FindClosestEnemy(UnitContext context, Vector3 origin, float searchRange)
+    {
         var units = UnitRegistry.Units;
-        var selfPosition = context.Transform.position;
         var bestTarget = default(IAttackTarget);
         var bestDistance = float.MaxValue;
 
         for (int i = 0; i < units.Count; i++)
         {
             var other = units[i];
+
             if (other == null)
                 continue;
 
@@ -24,7 +29,8 @@ public class UnitTargetingSystem
             if (other.PlayerId == context.PlayerId)
                 continue;
 
-            var distance = Vector3.Distance(selfPosition, other.transform.position);
+            var distance = Vector3.Distance(origin, other.transform.position);
+
             if (distance > searchRange)
                 continue;
 
@@ -61,6 +67,24 @@ public class UnitTargetingSystem
         return distance <= context.Data.AttackRange;
     }
 
+    public bool IsInsideHoldLeash(UnitContext context, Vector3 position)
+    {
+        var leashDistance = context.Data.AttackRange * 1.5f;
+        return Vector3.Distance(context.HoldAnchorPosition, position) <= leashDistance;
+    }
+
+    public bool IsInsidePatrolLeash(UnitContext context, Vector3 position)
+    {
+        var leashDistance = context.Data.AttackRange * 1.5f;
+        var closestPoint = GetClosestPointOnSegment(position, context.PatrolPointA, context.PatrolPointB);
+        return Vector3.Distance(position, closestPoint) <= leashDistance;
+    }
+
+    public Vector3 GetClosestPointOnPatrolSegment(UnitContext context, Vector3 position)
+    {
+        return GetClosestPointOnSegment(position, context.PatrolPointA, context.PatrolPointB);
+    }
+
     public bool IsInRepairRange(UnitContext context, IRepairTarget target)
     {
         if (target == null)
@@ -80,5 +104,19 @@ public class UnitTargetingSystem
 
         var distance = Vector3.Distance(context.Transform.position, target.Position);
         return distance <= context.Data.RepairRange;
+    }
+
+    private Vector3 GetClosestPointOnSegment(Vector3 point, Vector3 a, Vector3 b)
+    {
+        var ab = b - a;
+        var denominator = Vector3.Dot(ab, ab);
+
+        if (denominator <= 0.0001f)
+            return a;
+
+        var t = Vector3.Dot(point - a, ab) / denominator;
+        t = Mathf.Clamp01(t);
+
+        return a + ab * t;
     }
 }

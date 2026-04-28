@@ -16,34 +16,50 @@ public class PatrolState : IUnitState
     public void Enter(UnitContext context)
     {
         context.RepairTarget = null;
+        context.HasReturnTarget = false;
     }
 
     public void Update(UnitContext context, float deltaTime)
     {
-        if (context.Data.CanAttack)
+        _combatSystem.UpdateAttack(context, _targetingSystem);
+
+        if (context.IsAttackAnimationLocked)
+            return;
+
+        if (context.Owner.CanAttack)
         {
             if (!_targetingSystem.IsValidAttackTarget(context, context.AttackTarget))
                 context.AttackTarget = _targetingSystem.FindClosestEnemy(context, context.Data.VisionRange);
 
             if (_targetingSystem.IsValidAttackTarget(context, context.AttackTarget))
             {
-                var segmentLength = Vector3.Distance(context.PatrolPointA, context.PatrolPointB);
-                var maxChaseDistance = Mathf.Max(segmentLength * 2f, context.Data.VisionRange);
-                var anchor = GetNearestAnchor(context);
-                var targetDistanceFromAnchor = Vector3.Distance(anchor, context.AttackTarget.Position);
-
-                if (targetDistanceFromAnchor <= maxChaseDistance)
+                if (!_targetingSystem.IsInsidePatrolLeash(context, context.AttackTarget.Position))
                 {
-                    if (_targetingSystem.IsInAttackRange(context, context.AttackTarget))
-                        _combatSystem.TryAttack(context, context.AttackTarget);
-                    else
-                        _movementSystem.MoveTo(context, context.AttackTarget.Position, deltaTime);
-
+                    context.AttackTarget = null;
+                    ReturnToPatrolSegment(context, deltaTime);
                     return;
                 }
 
-                context.AttackTarget = null;
+                if (_targetingSystem.IsInAttackRange(context, context.AttackTarget))
+                {
+                    _movementSystem.Stop(context);
+                    _combatSystem.TryAttack(context, context.AttackTarget);
+                    return;
+                }
+
+                _movementSystem.MoveTo(context, context.AttackTarget.Position, deltaTime);
+                return;
             }
+        }
+
+        if (context.HasReturnTarget)
+        {
+            var returned = _movementSystem.MoveTo(context, context.ReturnTargetPosition, deltaTime);
+
+            if (!returned)
+                return;
+
+            context.HasReturnTarget = false;
         }
 
         var destination = context.PatrolToB ? context.PatrolPointB : context.PatrolPointA;
@@ -57,10 +73,10 @@ public class PatrolState : IUnitState
     {
     }
 
-    private Vector3 GetNearestAnchor(UnitContext context)
+    private void ReturnToPatrolSegment(UnitContext context, float deltaTime)
     {
-        var distanceToA = Vector3.Distance(context.Transform.position, context.PatrolPointA);
-        var distanceToB = Vector3.Distance(context.Transform.position, context.PatrolPointB);
-        return distanceToA <= distanceToB ? context.PatrolPointA : context.PatrolPointB;
+        context.ReturnTargetPosition = _targetingSystem.GetClosestPointOnPatrolSegment(context, context.Transform.position);
+        context.HasReturnTarget = true;
+        _movementSystem.MoveTo(context, context.ReturnTargetPosition, deltaTime);
     }
 }

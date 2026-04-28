@@ -8,14 +8,20 @@ public class UnitContext
 
     private float _currentHealth;
     private float _attackCooldown;
+    private float _attackWindupTimer;
 
     private Vector3 _moveTargetPosition;
     private Vector3 _holdAnchorPosition;
     private Vector3 _patrolPointA;
     private Vector3 _patrolPointB;
+    private Vector3 _returnTargetPosition;
+    private Vector3 _combatOriginPosition;
     private bool _patrolToB = true;
+    private bool _hasReturnTarget;
+    private bool _isAttackAnimationLocked;
 
     private IAttackTarget _attackTarget;
+    private IAttackTarget _pendingAttackTarget;
     private IRepairTarget _repairTarget;
 
     private int _playerId;
@@ -39,6 +45,12 @@ public class UnitContext
     {
         get => _attackCooldown;
         set => _attackCooldown = value;
+    }
+
+    public float AttackWindupTimer
+    {
+        get => _attackWindupTimer;
+        set => _attackWindupTimer = value;
     }
 
     public Vector3 MoveTargetPosition
@@ -65,16 +77,46 @@ public class UnitContext
         set => _patrolPointB = value;
     }
 
+    public Vector3 ReturnTargetPosition
+    {
+        get => _returnTargetPosition;
+        set => _returnTargetPosition = value;
+    }
+
+    public Vector3 CombatOriginPosition
+    {
+        get => _combatOriginPosition;
+        set => _combatOriginPosition = value;
+    }
+
     public bool PatrolToB
     {
         get => _patrolToB;
         set => _patrolToB = value;
     }
 
+    public bool HasReturnTarget
+    {
+        get => _hasReturnTarget;
+        set => _hasReturnTarget = value;
+    }
+
+    public bool IsAttackAnimationLocked
+    {
+        get => _isAttackAnimationLocked;
+        set => _isAttackAnimationLocked = value;
+    }
+
     public IAttackTarget AttackTarget
     {
         get => _attackTarget;
         set => _attackTarget = value;
+    }
+
+    public IAttackTarget PendingAttackTarget
+    {
+        get => _pendingAttackTarget;
+        set => _pendingAttackTarget = value;
     }
 
     public IRepairTarget RepairTarget
@@ -120,12 +162,18 @@ public class UnitContext
         _transform = transform;
         _playerId = playerId;
         _currentHealth = data.MaxHealth;
+        _attackCooldown = 0f;
+        _attackWindupTimer = 0f;
         _moveTargetPosition = transform.position;
         _holdAnchorPosition = transform.position;
         _patrolPointA = transform.position;
         _patrolPointB = transform.position;
+        _returnTargetPosition = transform.position;
+        _combatOriginPosition = transform.position;
         _moveDirection = Vector3.zero;
         _isMoving = false;
         _currentVelocity = Vector3.zero;
+        _hasReturnTarget = false;
+        _isAttackAnimationLocked = false;
     }
 }

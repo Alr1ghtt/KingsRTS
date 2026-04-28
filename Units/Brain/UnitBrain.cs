@@ -25,7 +25,7 @@ public class UnitBrain
         _targetingSystem = new UnitTargetingSystem();
         _combatSystem = new UnitCombatSystem();
 
-        _idleState = new IdleState(_movementSystem);
+        _idleState = new IdleState(_movementSystem, _targetingSystem, _combatSystem);
         _moveState = new MoveState(_movementSystem);
         _holdPositionState = new HoldPositionState(_movementSystem, _targetingSystem, _combatSystem);
         _patrolState = new PatrolState(_movementSystem, _targetingSystem, _combatSystem);
@@ -47,6 +47,7 @@ public class UnitBrain
         switch (command.Type)
         {
             case UnitCommandType.Move:
+                _combatSystem.CancelAttack(_context);
                 _context.MoveTargetPosition = command.PositionA;
                 _context.AttackTarget = null;
                 _context.RepairTarget = null;
@@ -54,6 +55,7 @@ public class UnitBrain
                 break;
 
             case UnitCommandType.HoldPosition:
+                _combatSystem.CancelAttack(_context);
                 _context.HoldAnchorPosition = command.PositionA;
                 _context.AttackTarget = null;
                 _context.RepairTarget = null;
@@ -61,6 +63,7 @@ public class UnitBrain
                 break;
 
             case UnitCommandType.Patrol:
+                _combatSystem.CancelAttack(_context);
                 _context.PatrolPointA = command.PositionA;
                 _context.PatrolPointB = command.PositionB;
                 _context.PatrolToB = true;
@@ -70,6 +73,7 @@ public class UnitBrain
                 break;
 
             case UnitCommandType.AttackMove:
+                _combatSystem.CancelAttack(_context);
                 _context.MoveTargetPosition = command.PositionA;
                 _context.AttackTarget = null;
                 _context.RepairTarget = null;
@@ -77,18 +81,21 @@ public class UnitBrain
                 break;
 
             case UnitCommandType.AttackTarget:
+                _combatSystem.CancelAttack(_context);
                 _context.AttackTarget = command.TargetToAttack;
                 _context.RepairTarget = null;
                 _stateMachine.SetState(_attackTargetState, _context);
                 break;
 
             case UnitCommandType.Repair:
+                _combatSystem.CancelAttack(_context);
                 _context.RepairTarget = command.TargetToRepair;
                 _context.AttackTarget = null;
                 _stateMachine.SetState(_workerRepairState, _context);
                 break;
 
             case UnitCommandType.Build:
+                _combatSystem.CancelAttack(_context);
                 _context.MoveTargetPosition = command.PositionA;
                 _context.AttackTarget = null;
                 _context.RepairTarget = null;

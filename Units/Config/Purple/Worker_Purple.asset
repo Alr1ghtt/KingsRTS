@@ -25,7 +25,7 @@ MonoBehaviour:
     _radius: 0.35
     _separationWeight: 2.4
     _separationRangeMultiplier: 2.2
-    _canAttack: 1
+    _canAttack: 0
     _canRepair: 1
     _canBuild: 1
     _canBeRepaired: 0

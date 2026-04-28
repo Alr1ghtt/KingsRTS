@@ -14,10 +14,22 @@ public class AttackTargetState : IUnitState
     public void Enter(UnitContext context)
     {
         context.RepairTarget = null;
+        context.HasReturnTarget = false;
     }
 
     public void Update(UnitContext context, float deltaTime)
     {
+        _combatSystem.UpdateAttack(context, _targetingSystem);
+
+        if (context.IsAttackAnimationLocked)
+            return;
+
+        if (!context.Owner.CanAttack)
+        {
+            _movementSystem.Stop(context);
+            return;
+        }
+
         if (!_targetingSystem.IsValidAttackTarget(context, context.AttackTarget))
         {
             _movementSystem.Stop(context);
@@ -25,9 +37,13 @@ public class AttackTargetState : IUnitState
         }
 
         if (_targetingSystem.IsInAttackRange(context, context.AttackTarget))
+        {
+            _movementSystem.Stop(context);
             _combatSystem.TryAttack(context, context.AttackTarget);
-        else
-            _movementSystem.MoveTo(context, context.AttackTarget.Position, deltaTime);
+            return;
+        }
+
+        _movementSystem.MoveTo(context, context.AttackTarget.Position, deltaTime);
     }
 
     public void Exit(UnitContext context)
