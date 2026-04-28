@@ -18,8 +18,15 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     [SerializeField] private string _spearmanAttackDownAnimationStateName = "AttackDown";
     [SerializeField] private string _spearmanAttackUpRightAnimationStateName = "AttackUpRight";
     [SerializeField] private string _spearmanAttackDownRightAnimationStateName = "AttackDownRight";
+    [SerializeField] private float _warriorAttackDuration = 0.4f;
+    [SerializeField] private float _spearmanAttackDuration = 0.3f;
+    [SerializeField] private float _archerAttackDuration = 0.8f;
+    [SerializeField] private float _defaultAttackDuration = 0.4f;
     [SerializeField] private float _animationCrossFadeDuration = 0.05f;
     [SerializeField] private int _animationLayerIndex;
+    [SerializeField] private GameObject _arrowPrefab;
+    [SerializeField] private Transform _arrowSpawnPoint;
+    [SerializeField] private Vector2 _arrowSpawnPointRightLocalPosition = new Vector2(0.5f, 0.5f);
     [SerializeField] private GameObject _deathSmokePrefab;
     [SerializeField] private float _deathSmokeLifetime = 2f;
     [SerializeField] private bool _drawAttackRange = true;
@@ -84,6 +91,8 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     public bool CanBeRepaired => Data.CanBeRepaired;
     public bool NeedsRepair => _context != null && _context.CurrentHealth < Data.MaxHealth;
     public bool CanAttack => IsAlive && Data.CanAttack && _unitType != UnitType.Worker && _unitType != UnitType.Monk;
+    public GameObject DeathSmokePrefab => _deathSmokePrefab;
+    public float DeathSmokeLifetime => _deathSmokeLifetime;
 
     private void Awake()
     {
@@ -123,6 +132,22 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     {
         _playerId = playerId;
         _context.PlayerId = playerId;
+    }
+
+    public bool IsEnemy(IAttackTarget target)
+    {
+        if (target == null)
+            return false;
+
+        return target.TeamColor != _teamColor;
+    }
+
+    public bool IsAlly(IAttackTarget target)
+    {
+        if (target == null)
+            return false;
+
+        return target.TeamColor == _teamColor;
     }
 
     public void TakeDamage(float damage)
@@ -214,24 +239,38 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
         _animator.Play(stateHash, _animationLayerIndex, 0f);
     }
 
-    public void PlayAttackAnimation(IAttackTarget target)
+    public UnitAttackProfile PlayAttackAnimation(IAttackTarget target)
     {
         if (_animator == null)
-            return;
+            return UnitAttackProfile.Default(_defaultAttackDuration, _defaultAttackDuration * 0.5f);
 
         if (_unitType == UnitType.Warrior)
-        {
-            PlayWarriorAttackAnimation();
-            return;
-        }
+            return PlayWarriorAttackAnimation();
 
         if (_unitType == UnitType.Spearman)
-        {
-            PlaySpearmanAttackAnimation(target);
-            return;
-        }
+            return PlaySpearmanAttackAnimation(target);
 
-        PlayDefaultAttackAnimation();
+        if (_unitType == UnitType.Archer)
+            return PlayArcherAttackAnimation();
+
+        return PlayDefaultAttackAnimation();
+    }
+
+    public void SpawnArrow(Vector3 startPosition, Vector3 targetPosition, float damage)
+    {
+        if (_arrowPrefab == null)
+            return;
+
+        UpdateArrowSpawnPoint();
+
+        var spawnPosition = _arrowSpawnPoint != null ? _arrowSpawnPoint.position : startPosition;
+        var arrowObject = Instantiate(_arrowPrefab, spawnPosition, Quaternion.identity);
+        var arrow = arrowObject.GetComponent<ArrowProjectile>();
+
+        if (arrow == null)
+            return;
+
+        arrow.Initialize(this, TeamColor, spawnPosition, targetPosition, damage, Data.AttackRange, _deathSmokePrefab, _deathSmokeLifetime);
     }
 
     public void ForceRefreshAnimation()
@@ -302,14 +341,28 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
         if (_context.AttackCooldown > 0f)
             _context.AttackCooldown -= deltaTime;
 
-        if (_context.AttackWindupTimer > 0f)
-            _context.AttackWindupTimer -= deltaTime;
-
         _brain.Update(deltaTime);
         UpdateVisualDirection();
+        UpdateArrowSpawnPoint();
         UpdateAnimation();
     }
+    private void UpdateArrowSpawnPoint()
+    {
+        if (_arrowSpawnPoint == null)
+            return;
 
+        if (_unitType != UnitType.Archer)
+            return;
+
+        var rightPosition = _arrowSpawnPointRightLocalPosition;
+        var visualScaleX = _visualRoot != null ? _visualRoot.localScale.x : 1f;
+        var lookingLeft = visualScaleX < 0f;
+
+        var position = _arrowSpawnPoint.localPosition;
+        position.x = lookingLeft ? -Mathf.Abs(rightPosition.x) : Mathf.Abs(rightPosition.x);
+        position.y = rightPosition.y;
+        _arrowSpawnPoint.localPosition = position;
+    }
     private void UpdateVisualDirection()
     {
         if (_visualRoot == null)
@@ -326,10 +379,18 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
             return;
         }
 
-        if (_context.AttackTarget == null)
+        var attackTarget = _context.AttackTarget;
+
+        if (attackTarget == null)
             return;
 
-        var attackDirectionX = _context.AttackTarget.Position.x - transform.position.x;
+        if (!attackTarget.IsAlive)
+        {
+            _context.AttackTarget = null;
+            return;
+        }
+
+        var attackDirectionX = attackTarget.Position.x - transform.position.x;
 
         if (Mathf.Abs(attackDirectionX) <= 0.001f)
             return;
@@ -375,56 +436,58 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
         return _workerConstructionAgent.IsBuildingAnimationLocked;
     }
 
-    private void PlayDefaultAttackAnimation()
+    private UnitAttackProfile PlayDefaultAttackAnimation()
     {
-        if (!_hasAttackAnimation)
-            return;
+        if (_hasAttackAnimation)
+            _animator.CrossFade(_attackAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
 
-        _animator.CrossFade(_attackAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
+        return UnitAttackProfile.Default(_defaultAttackDuration, _defaultAttackDuration * 0.5f);
     }
 
-    private void PlayWarriorAttackAnimation()
+    private UnitAttackProfile PlayArcherAttackAnimation()
+    {
+        if (_hasAttackAnimation)
+            _animator.CrossFade(_attackAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
+
+        return UnitAttackProfile.Projectile(_archerAttackDuration, _archerAttackDuration * 6f / 8f);
+    }
+
+    private UnitAttackProfile PlayWarriorAttackAnimation()
     {
         if (_useWarriorSecondAttack && _hasWarriorAttackAnimationB)
         {
             _animator.CrossFade(_warriorAttackAnimationStateHashB, _animationCrossFadeDuration, _animationLayerIndex);
             _useWarriorSecondAttack = false;
-            return;
+            return UnitAttackProfile.Default(_warriorAttackDuration, _warriorAttackDuration * 3f / 4f);
         }
 
         if (_hasWarriorAttackAnimationA)
         {
             _animator.CrossFade(_warriorAttackAnimationStateHashA, _animationCrossFadeDuration, _animationLayerIndex);
             _useWarriorSecondAttack = true;
-            return;
+            return UnitAttackProfile.Default(_warriorAttackDuration, _warriorAttackDuration * 3f / 4f);
         }
 
         if (_hasWarriorAttackAnimationB)
         {
             _animator.CrossFade(_warriorAttackAnimationStateHashB, _animationCrossFadeDuration, _animationLayerIndex);
             _useWarriorSecondAttack = false;
-            return;
+            return UnitAttackProfile.Default(_warriorAttackDuration, _warriorAttackDuration * 3f / 4f);
         }
 
-        PlayDefaultAttackAnimation();
+        return PlayDefaultAttackAnimation();
     }
 
-    private void PlaySpearmanAttackAnimation(IAttackTarget target)
+    private UnitAttackProfile PlaySpearmanAttackAnimation(IAttackTarget target)
     {
         if (target == null)
-        {
-            PlayDefaultAttackAnimation();
-            return;
-        }
+            return PlayDefaultAttackAnimation();
 
         var direction = target.Position - transform.position;
         direction.z = 0f;
 
         if (direction.sqrMagnitude <= 0.0001f)
-        {
-            PlayDefaultAttackAnimation();
-            return;
-        }
+            return PlayDefaultAttackAnimation();
 
         var absX = Mathf.Abs(direction.x);
         var absY = Mathf.Abs(direction.y);
@@ -436,13 +499,13 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
             if (normalizedY > 0f && _hasSpearmanAttackUpAnimation)
             {
                 _animator.CrossFade(_spearmanAttackUpAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
-                return;
+                return UnitAttackProfile.Default(_spearmanAttackDuration, _spearmanAttackDuration * 2f / 3f);
             }
 
             if (normalizedY < 0f && _hasSpearmanAttackDownAnimation)
             {
                 _animator.CrossFade(_spearmanAttackDownAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
-                return;
+                return UnitAttackProfile.Default(_spearmanAttackDuration, _spearmanAttackDuration * 2f / 3f);
             }
         }
 
@@ -451,23 +514,23 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
             if (normalizedY > 0f && _hasSpearmanAttackUpRightAnimation)
             {
                 _animator.CrossFade(_spearmanAttackUpRightAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
-                return;
+                return UnitAttackProfile.Default(_spearmanAttackDuration, _spearmanAttackDuration * 2f / 3f);
             }
 
             if (normalizedY < 0f && _hasSpearmanAttackDownRightAnimation)
             {
                 _animator.CrossFade(_spearmanAttackDownRightAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
-                return;
+                return UnitAttackProfile.Default(_spearmanAttackDuration, _spearmanAttackDuration * 2f / 3f);
             }
         }
 
         if (normalizedX > 0f && _hasSpearmanAttackRightAnimation)
         {
             _animator.CrossFade(_spearmanAttackRightAnimationStateHash, _animationCrossFadeDuration, _animationLayerIndex);
-            return;
+            return UnitAttackProfile.Default(_spearmanAttackDuration, _spearmanAttackDuration * 2f / 3f);
         }
 
-        PlayDefaultAttackAnimation();
+        return PlayDefaultAttackAnimation();
     }
 
     private void PlayIdleAnimationImmediate()

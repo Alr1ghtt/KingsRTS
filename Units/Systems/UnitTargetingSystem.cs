@@ -26,7 +26,7 @@ public class UnitTargetingSystem
             if (!other.IsAlive)
                 continue;
 
-            if (other.PlayerId == context.PlayerId)
+            if (other.TeamColor == context.Owner.TeamColor)
                 continue;
 
             var distance = Vector3.Distance(origin, other.transform.position);
@@ -52,7 +52,7 @@ public class UnitTargetingSystem
         if (!target.IsAlive)
             return false;
 
-        if (target.PlayerId == context.PlayerId)
+        if (target.TeamColor == context.Owner.TeamColor)
             return false;
 
         return true;

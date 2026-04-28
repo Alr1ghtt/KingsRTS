@@ -21,7 +21,7 @@ public class IdleState : IUnitState
 
     public void Update(UnitContext context, float deltaTime)
     {
-        _combatSystem.UpdateAttack(context, _targetingSystem);
+        _combatSystem.UpdateAttack(context, _targetingSystem, deltaTime);
 
         if (context.IsAttackAnimationLocked)
             return;

@@ -8,14 +8,19 @@ public class UnitContext
 
     private float _currentHealth;
     private float _attackCooldown;
-    private float _attackWindupTimer;
+    private float _attackTimer;
+    private float _attackHitTime;
+    private float _attackDuration;
+    private float _attackDamage;
+    private bool _attackHitApplied;
 
     private Vector3 _moveTargetPosition;
     private Vector3 _holdAnchorPosition;
     private Vector3 _patrolPointA;
     private Vector3 _patrolPointB;
     private Vector3 _returnTargetPosition;
-    private Vector3 _combatOriginPosition;
+    private Vector3 _attackStartPosition;
+    private Vector3 _attackTargetPosition;
     private bool _patrolToB = true;
     private bool _hasReturnTarget;
     private bool _isAttackAnimationLocked;
@@ -47,10 +52,34 @@ public class UnitContext
         set => _attackCooldown = value;
     }
 
-    public float AttackWindupTimer
+    public float AttackTimer
     {
-        get => _attackWindupTimer;
-        set => _attackWindupTimer = value;
+        get => _attackTimer;
+        set => _attackTimer = value;
+    }
+
+    public float AttackHitTime
+    {
+        get => _attackHitTime;
+        set => _attackHitTime = value;
+    }
+
+    public float AttackDuration
+    {
+        get => _attackDuration;
+        set => _attackDuration = value;
+    }
+
+    public float AttackDamage
+    {
+        get => _attackDamage;
+        set => _attackDamage = value;
+    }
+
+    public bool AttackHitApplied
+    {
+        get => _attackHitApplied;
+        set => _attackHitApplied = value;
     }
 
     public Vector3 MoveTargetPosition
@@ -83,10 +112,16 @@ public class UnitContext
         set => _returnTargetPosition = value;
     }
 
-    public Vector3 CombatOriginPosition
+    public Vector3 AttackStartPosition
     {
-        get => _combatOriginPosition;
-        set => _combatOriginPosition = value;
+        get => _attackStartPosition;
+        set => _attackStartPosition = value;
+    }
+
+    public Vector3 AttackTargetPosition
+    {
+        get => _attackTargetPosition;
+        set => _attackTargetPosition = value;
     }
 
     public bool PatrolToB
@@ -163,13 +198,18 @@ public class UnitContext
         _playerId = playerId;
         _currentHealth = data.MaxHealth;
         _attackCooldown = 0f;
-        _attackWindupTimer = 0f;
+        _attackTimer = 0f;
+        _attackHitTime = 0f;
+        _attackDuration = 0f;
+        _attackDamage = 0f;
+        _attackHitApplied = false;
         _moveTargetPosition = transform.position;
         _holdAnchorPosition = transform.position;
         _patrolPointA = transform.position;
         _patrolPointB = transform.position;
         _returnTargetPosition = transform.position;
-        _combatOriginPosition = transform.position;
+        _attackStartPosition = transform.position;
+        _attackTargetPosition = transform.position;
         _moveDirection = Vector3.zero;
         _isMoving = false;
         _currentVelocity = Vector3.zero;
