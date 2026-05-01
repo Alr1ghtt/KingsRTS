@@ -36,10 +36,17 @@ public class UnitContext
     private bool _isMoving;
     private Vector3 _currentVelocity;
 
+    private float _currentMana;
+    private IHealTarget _healTarget;
+
     public Unit Owner => _owner;
     public UnitData Data => _data;
     public Transform Transform => _transform;
-
+    public IHealTarget HealTarget
+    {
+        get => _healTarget;
+        set => _healTarget = value;
+    }
     public float CurrentHealth
     {
         get => _currentHealth;
@@ -189,7 +196,11 @@ public class UnitContext
         get => _currentVelocity;
         set => _currentVelocity = value;
     }
-
+    public float CurrentMana
+    {
+        get => _currentMana;
+        set => _currentMana = value;
+    }
     public void Initialize(Unit owner, UnitData data, Transform transform, int playerId)
     {
         _owner = owner;
@@ -215,5 +226,6 @@ public class UnitContext
         _currentVelocity = Vector3.zero;
         _hasReturnTarget = false;
         _isAttackAnimationLocked = false;
+        _currentMana = data.MaxMana;
     }
 }

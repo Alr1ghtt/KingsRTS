@@ -7,6 +7,9 @@ public class UnitBrain
     private UnitTargetingSystem _targetingSystem;
     private UnitCombatSystem _combatSystem;
 
+    private UnitHealingSystem _healingSystem;
+    private HealTargetState _healTargetState;
+
     private IdleState _idleState;
     private MoveState _moveState;
     private HoldPositionState _holdPositionState;
@@ -24,6 +27,9 @@ public class UnitBrain
         _movementSystem = new UnitMovementSystem();
         _targetingSystem = new UnitTargetingSystem();
         _combatSystem = new UnitCombatSystem();
+
+        _healingSystem = new UnitHealingSystem();
+        _healTargetState = new HealTargetState(_movementSystem, _healingSystem);
 
         _idleState = new IdleState(_movementSystem, _targetingSystem, _combatSystem);
         _moveState = new MoveState(_movementSystem);
@@ -100,6 +106,13 @@ public class UnitBrain
                 _context.AttackTarget = null;
                 _context.RepairTarget = null;
                 _stateMachine.SetState(_workerBuildState, _context);
+                break;
+            case UnitCommandType.Heal:
+                _combatSystem.CancelAttack(_context);
+                _context.HealTarget = command.TargetToHeal;
+                _context.AttackTarget = null;
+                _context.RepairTarget = null;
+                _stateMachine.SetState(_healTargetState, _context);
                 break;
         }
     }

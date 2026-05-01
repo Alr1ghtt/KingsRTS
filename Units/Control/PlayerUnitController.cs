@@ -11,7 +11,8 @@ public class PlayerUnitController : MonoBehaviour
         Patrol,
         Attack,
         Repair,
-        Build
+        Build,
+        Heal
     }
 
     [SerializeField] private int _localPlayerId;
@@ -32,6 +33,22 @@ public class PlayerUnitController : MonoBehaviour
     [SerializeField] private BuildingData _monasteryData;
     [SerializeField] private BuildingData _towerData;
 
+    [Header("HUD")]
+    [SerializeField] private RTSHUDView _hudView;
+    [SerializeField] private RTSCommandLibrary _commandLibrary;
+    [SerializeField] private PlayerResources _playerResources;
+
+    private readonly List<Unit>[] _controlGroups =
+    {
+    new(),
+    new(),
+    new(),
+    new(),
+    new(),
+    new()
+};
+
+    private bool _isBuildCommandPanelOpen;
     private readonly List<Unit> _selectedUnits = new();
     private readonly List<WorkerConstructionAgent> _selectedWorkers = new();
 
@@ -50,6 +67,7 @@ public class PlayerUnitController : MonoBehaviour
     {
         _mouse = Mouse.current;
         _keyboard = Keyboard.current;
+        BindHUDControlGroupButtons();
     }
 
     private void Update()
@@ -66,8 +84,309 @@ public class PlayerUnitController : MonoBehaviour
         HandleSelection();
         HandleOrders();
         UpdateBuildPreview();
+        HandleControlGroups();
+        RefreshHUD();
     }
+    public void SelectOnly(Unit unit)
+    {
+        ClearSelection();
 
+        if (unit == null)
+            return;
+
+        AddToSelection(unit);
+        RefreshHUD();
+    }
+    private void BindHUDControlGroupButtons()
+    {
+        if (_hudView == null)
+            return;
+
+        var buttons = _hudView.ControlGroupButtons;
+
+        if (buttons == null)
+            return;
+
+        for (int i = 0; i < buttons.Length && i < _controlGroups.Length; i++)
+        {
+            var index = i;
+
+            if (buttons[i] == null)
+                continue;
+
+            buttons[i].onClick.RemoveAllListeners();
+            buttons[i].onClick.AddListener(() => SelectControlGroup(index));
+        }
+    }
+    private void HandleControlGroups()
+    {
+        if (_keyboard == null)
+            return;
+
+        if (TryGetControlGroupKey(out var index))
+        {
+            if (IsCtrlPressed())
+                SaveControlGroup(index);
+            else
+                SelectControlGroup(index);
+        }
+    }
+    private bool TryGetControlGroupKey(out int index)
+    {
+        index = -1;
+
+        if (_keyboard.digit1Key.wasPressedThisFrame)
+            index = 0;
+        else if (_keyboard.digit2Key.wasPressedThisFrame)
+            index = 1;
+        else if (_keyboard.digit3Key.wasPressedThisFrame)
+            index = 2;
+        else if (_keyboard.digit4Key.wasPressedThisFrame)
+            index = 3;
+        else if (_keyboard.digit5Key.wasPressedThisFrame)
+            index = 4;
+        else if (_keyboard.digit6Key.wasPressedThisFrame)
+            index = 5;
+
+        return index >= 0;
+    }
+    private bool IsCtrlPressed()
+    {
+        if (_keyboard == null)
+            return false;
+
+        return _keyboard.leftCtrlKey.isPressed || _keyboard.rightCtrlKey.isPressed;
+    }
+    private void SaveControlGroup(int index)
+    {
+        if (index < 0 || index >= _controlGroups.Length)
+            return;
+
+        _controlGroups[index].Clear();
+
+        for (int i = 0; i < _selectedUnits.Count; i++)
+        {
+            if (_selectedUnits[i] == null)
+                continue;
+
+            _controlGroups[index].Add(_selectedUnits[i]);
+        }
+
+        RefreshHUD();
+    }
+    private void SelectControlGroup(int index)
+    {
+        if (index < 0 || index >= _controlGroups.Length)
+            return;
+
+        ClearSelection();
+
+        for (int i = _controlGroups[index].Count - 1; i >= 0; i--)
+        {
+            var unit = _controlGroups[index][i];
+
+            if (unit == null || !unit.IsAlive)
+            {
+                _controlGroups[index].RemoveAt(i);
+                continue;
+            }
+
+            AddToSelection(unit);
+        }
+
+        _inputMode = InputMode.Default;
+        _isBuildCommandPanelOpen = false;
+        RefreshHUD();
+    }
+    private void RefreshHUD()
+    {
+        if (_hudView == null)
+            return;
+
+        if (_playerResources != null)
+            _hudView.SetResources(_playerResources);
+
+        for (int i = 0; i < _controlGroups.Length; i++)
+            _hudView.SetControlGroupCount(i, GetAliveControlGroupCount(i));
+
+        if (_selectedUnits.Count == 1)
+            _hudView.ShowSingleUnit(_selectedUnits[0]);
+        else
+            _hudView.ShowUnitList(_selectedUnits, SelectOnly);
+
+        _hudView.SetCommands(GetAvailableCommands(), HandleUICommand);
+    }
+    private int GetAliveControlGroupCount(int index)
+    {
+        if (index < 0 || index >= _controlGroups.Length)
+            return 0;
+
+        var count = 0;
+
+        for (int i = _controlGroups[index].Count - 1; i >= 0; i--)
+        {
+            var unit = _controlGroups[index][i];
+
+            if (unit == null || !unit.IsAlive)
+            {
+                _controlGroups[index].RemoveAt(i);
+                continue;
+            }
+
+            count++;
+        }
+
+        return count;
+    }
+    private IReadOnlyList<RTSCommandDefinition> GetAvailableCommands()
+    {
+        var commands = new List<RTSCommandDefinition>();
+
+        if (_commandLibrary == null)
+            return commands;
+
+        if (_selectedUnits.Count == 0)
+            return commands;
+
+        if (_isBuildCommandPanelOpen)
+        {
+            commands.Add(_commandLibrary.BuildArchery);
+            commands.Add(_commandLibrary.BuildBarracks);
+            commands.Add(_commandLibrary.BuildCastle);
+            commands.Add(_commandLibrary.BuildHouse);
+            commands.Add(_commandLibrary.BuildMonastery);
+            commands.Add(_commandLibrary.BuildTower);
+            return commands;
+        }
+
+        commands.Add(_commandLibrary.Move);
+        commands.Add(_commandLibrary.HoldPosition);
+        commands.Add(_commandLibrary.Patrol);
+
+        if (HasSelectedMonk())
+            commands.Add(_commandLibrary.Heal);
+        else if (HasAnySelectedAttacker())
+            commands.Add(_commandLibrary.Attack);
+
+        if (AreAllSelectedWorkers())
+        {
+            commands.Add(_commandLibrary.Repair);
+            commands.Add(_commandLibrary.BuildMenu);
+        }
+
+        return commands;
+    }
+    private bool HasSelectedMonk()
+    {
+        for (int i = 0; i < _selectedUnits.Count; i++)
+        {
+            if (_selectedUnits[i] == null)
+                continue;
+
+            if (_selectedUnits[i].UnitType == UnitType.Monk)
+                return true;
+        }
+
+        return false;
+    }
+    private bool HasAnySelectedAttacker()
+    {
+        for (int i = 0; i < _selectedUnits.Count; i++)
+        {
+            if (_selectedUnits[i] == null)
+                continue;
+
+            if (_selectedUnits[i].CanAttack)
+                return true;
+        }
+
+        return false;
+    }
+    private void HandleUICommand(RTSCommandDefinition command)
+    {
+        if (command == null)
+            return;
+
+        switch (command.Type)
+        {
+            case RTSCommandType.Move:
+                _inputMode = InputMode.Move;
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.HoldPosition:
+                if (_selectedUnits.Count > 0)
+                {
+                    var orders = UnitOrderFactory.CreateHoldOrders(_selectedUnits);
+                    ApplyOrders(orders);
+                }
+
+                _inputMode = InputMode.Default;
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.Patrol:
+                _inputMode = InputMode.Patrol;
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.Attack:
+                _inputMode = InputMode.Attack;
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.Heal:
+                _inputMode = InputMode.Heal;
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.Repair:
+                _inputMode = InputMode.Repair;
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.BuildMenu:
+                if (AreAllSelectedWorkers())
+                {
+                    _inputMode = InputMode.Build;
+                    _pendingBuildingData = null;
+                    _isBuildCommandPanelOpen = true;
+                }
+                break;
+
+            case RTSCommandType.BuildArchery:
+                SelectPendingBuilding(_archeryData);
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.BuildBarracks:
+                SelectPendingBuilding(_barracksData);
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.BuildCastle:
+                SelectPendingBuilding(_castleData);
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.BuildHouse:
+                SelectPendingBuilding(_houseData);
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.BuildMonastery:
+                SelectPendingBuilding(_monasteryData);
+                _isBuildCommandPanelOpen = false;
+                break;
+
+            case RTSCommandType.BuildTower:
+                SelectPendingBuilding(_towerData);
+                _isBuildCommandPanelOpen = false;
+                break;
+        }
+
+        RefreshHUD();
+    }
     private void CancelSelectedWorkersConstructionOrders()
     {
         for (int i = 0; i < _selectedWorkers.Count; i++)
@@ -197,7 +516,71 @@ public class PlayerUnitController : MonoBehaviour
                 HandleBoxSelection(_selectionStartScreen, currentMousePosition, additiveSelection);
         }
     }
+    private void IssueHealOrder()
+    {
+        var healTarget = GetHealTargetUnderCursor();
 
+        if (healTarget == null)
+        {
+            _inputMode = InputMode.Default;
+            return;
+        }
+
+        for (int i = 0; i < _selectedUnits.Count; i++)
+        {
+            var unit = _selectedUnits[i];
+
+            if (unit == null)
+                continue;
+
+            if (unit.UnitType != UnitType.Monk)
+                continue;
+
+            unit.ApplyCommand(UnitCommand.Heal(healTarget));
+        }
+
+        _inputMode = InputMode.Default;
+    }
+    private IHealTarget GetHealTargetUnderCursor()
+    {
+        if (_camera == null)
+            _camera = Camera.main;
+
+        if (_camera == null || _mouse == null)
+            return null;
+
+        var worldPoint = GetMouseWorldPoint();
+        var hit = Physics2D.OverlapPoint(worldPoint, _unitMask);
+
+        if (hit == null)
+            return null;
+
+        var healTarget = hit.GetComponentInParent<MonoBehaviour>() as IHealTarget;
+
+        if (healTarget == null)
+            return null;
+
+        if (!healTarget.IsAlive)
+            return null;
+
+        if (healTarget.TeamColor != GetSelectedTeamColor())
+            return null;
+
+        if (!healTarget.NeedsHeal)
+            return null;
+
+        return healTarget;
+    }
+    private TeamColor GetSelectedTeamColor()
+    {
+        for (int i = 0; i < _selectedUnits.Count; i++)
+        {
+            if (_selectedUnits[i] != null)
+                return _selectedUnits[i].TeamColor;
+        }
+
+        return TeamColor.Black;
+    }
     private void HandleOrders()
     {
         if (_selectedUnits.Count == 0)
@@ -237,6 +620,9 @@ public class PlayerUnitController : MonoBehaviour
 
             case InputMode.Repair:
                 IssueRepairOrder();
+                break;
+            case InputMode.Heal:
+                IssueHealOrder();
                 break;
         }
     }

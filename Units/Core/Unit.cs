@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
+public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget, IHealTarget, IHealthViewTarget
 {
     [SerializeField] private UnitConfig _config;
     [SerializeField] private int _playerId;
@@ -32,10 +32,14 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     [SerializeField] private bool _drawAttackRange = true;
     [SerializeField] private bool _drawVisionRange = true;
 
+    [SerializeField] private Sprite _icon;
+
     [SerializeField] private UnitType _unitType;
     [SerializeField] private int _ownerPlayerId;
     [SerializeField] private TeamColor _teamColor;
     [SerializeField] private float _moveSpeed = 3f;
+
+    [SerializeField] private GameObject _healEffectPrefab;
 
     private UnitContext _context;
     private UnitStateMachine _stateMachine;
@@ -82,6 +86,7 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     public TeamColor TeamColor => _teamColor;
     public float MoveSpeed => _moveSpeed;
 
+    public Sprite Icon => _icon;
     public UnitContext Context => _context;
     public UnitData Data => _config.Data;
     public int PlayerId => _playerId;
@@ -94,6 +99,10 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
     public GameObject DeathSmokePrefab => _deathSmokePrefab;
     public float DeathSmokeLifetime => _deathSmokeLifetime;
 
+    public bool NeedsHeal => _context != null && _context.CurrentHealth < Data.MaxHealth;
+    public float CurrentHealth => _context != null ? _context.CurrentHealth : 0f;
+    public float MaxHealth => Data.MaxHealth;
+    public GameObject HealEffectPrefab => _healEffectPrefab;
     private void Awake()
     {
         Initialize();
@@ -164,7 +173,13 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
         if (_context.CurrentHealth <= 0f)
             Die();
     }
+    public void Heal(float amount)
+    {
+        if (_isDead)
+            return;
 
+        _context.CurrentHealth = Mathf.Min(_context.CurrentHealth + amount, Data.MaxHealth);
+    }
     public void Repair(float amount)
     {
         if (_isDead)
@@ -340,11 +355,19 @@ public class Unit : MonoBehaviour, IAttackTarget, IRepairTarget
 
         if (_context.AttackCooldown > 0f)
             _context.AttackCooldown -= deltaTime;
-
+        
+        RegenerateMana(deltaTime);
         _brain.Update(deltaTime);
         UpdateVisualDirection();
         UpdateArrowSpawnPoint();
         UpdateAnimation();
+    }
+    private void RegenerateMana(float deltaTime)
+    {
+        if (_unitType != UnitType.Monk)
+            return;
+
+        _context.CurrentMana = Mathf.Min(_context.CurrentMana + Data.ManaRegenRate * deltaTime, Data.MaxMana);
     }
     private void UpdateArrowSpawnPoint()
     {

@@ -25,6 +25,10 @@ public class UnitData
     [SerializeField] private float _repairRange = 1.1f;
     [SerializeField] private float _repairRate = 18f;
 
+    [SerializeField] private float _maxMana = 100f;
+    [SerializeField] private float _manaRegenRate = 3f;
+    [SerializeField] private float _healManaCost = 10f;
+
     [SerializeField] private UnitCost _cost;
 
     public UnitType Type => _type;
@@ -45,5 +49,9 @@ public class UnitData
     public bool CanBeRepaired => _canBeRepaired;
     public float RepairRange => _repairRange;
     public float RepairRate => _repairRate;
+
+    public float MaxMana => _maxMana;
+    public float ManaRegenRate => _manaRegenRate;
+    public float HealManaCost => _healManaCost;
     public UnitCost Cost => _cost;
 }

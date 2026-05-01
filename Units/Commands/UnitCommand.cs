@@ -7,13 +7,22 @@ public class UnitCommand
     private Vector3 _positionB;
     private IAttackTarget _attackTarget;
     private IRepairTarget _repairTarget;
+    private IHealTarget _healTarget;
 
     public UnitCommandType Type => _type;
     public Vector3 PositionA => _positionA;
     public Vector3 PositionB => _positionB;
     public IAttackTarget TargetToAttack => _attackTarget;
     public IRepairTarget TargetToRepair => _repairTarget;
-
+    public IHealTarget TargetToHeal => _healTarget;
+    public static UnitCommand Heal(IHealTarget target)
+    {
+        return new UnitCommand
+        {
+            _type = UnitCommandType.Heal,
+            _healTarget = target
+        };
+    }
     public static UnitCommand Move(Vector3 position)
     {
         return new UnitCommand
