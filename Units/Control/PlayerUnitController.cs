@@ -85,7 +85,6 @@ public class PlayerUnitController : MonoBehaviour
         HandleOrders();
         UpdateBuildPreview();
         HandleControlGroups();
-        RefreshHUD();
     }
     public void SelectOnly(Unit unit)
     {
@@ -250,31 +249,60 @@ public class PlayerUnitController : MonoBehaviour
 
         if (_isBuildCommandPanelOpen)
         {
-            commands.Add(_commandLibrary.BuildArchery);
-            commands.Add(_commandLibrary.BuildBarracks);
-            commands.Add(_commandLibrary.BuildCastle);
-            commands.Add(_commandLibrary.BuildHouse);
-            commands.Add(_commandLibrary.BuildMonastery);
-            commands.Add(_commandLibrary.BuildTower);
+            AddCommand(commands, _commandLibrary.BuildArchery);
+            AddCommand(commands, _commandLibrary.BuildBarracks);
+            AddCommand(commands, _commandLibrary.BuildCastle);
+            AddCommand(commands, _commandLibrary.BuildHouse);
+            AddCommand(commands, _commandLibrary.BuildMonastery);
+            AddCommand(commands, _commandLibrary.BuildTower);
             return commands;
         }
 
-        commands.Add(_commandLibrary.Move);
-        commands.Add(_commandLibrary.HoldPosition);
-        commands.Add(_commandLibrary.Patrol);
+        AddCommand(commands, _commandLibrary.Move);
+        AddCommand(commands, _commandLibrary.HoldPosition);
+        AddCommand(commands, _commandLibrary.Patrol);
 
-        if (HasSelectedMonk())
-            commands.Add(_commandLibrary.Heal);
-        else if (HasAnySelectedAttacker())
-            commands.Add(_commandLibrary.Attack);
+        if (IsOnlySelectedType(UnitType.Monk))
+        {
+            AddCommand(commands, _commandLibrary.Heal);
+            return commands;
+        }
+
+        if (HasAnySelectedAttacker())
+            AddCommand(commands, _commandLibrary.Attack);
 
         if (AreAllSelectedWorkers())
         {
-            commands.Add(_commandLibrary.Repair);
-            commands.Add(_commandLibrary.BuildMenu);
+            AddCommand(commands, _commandLibrary.Repair);
+            AddCommand(commands, _commandLibrary.BuildMenu);
         }
 
         return commands;
+    }
+
+    private void AddCommand(List<RTSCommandDefinition> commands, RTSCommandDefinition command)
+    {
+        if (command == null)
+            return;
+
+        commands.Add(command);
+    }
+
+    private bool IsOnlySelectedType(UnitType type)
+    {
+        if (_selectedUnits.Count == 0)
+            return false;
+
+        for (int i = 0; i < _selectedUnits.Count; i++)
+        {
+            if (_selectedUnits[i] == null)
+                return false;
+
+            if (_selectedUnits[i].UnitType != type)
+                return false;
+        }
+
+        return true;
     }
     private bool HasSelectedMonk()
     {
@@ -971,6 +999,7 @@ public class PlayerUnitController : MonoBehaviour
             if (!additiveSelection)
                 ClearSelection();
 
+            RefreshHUD();
             return;
         }
 
@@ -978,6 +1007,7 @@ public class PlayerUnitController : MonoBehaviour
             ClearSelection();
 
         AddToSelection(clickedUnit);
+        RefreshHUD();
     }
 
     private void HandleBoxSelection(Vector2 start, Vector2 end, bool additiveSelection)
@@ -989,7 +1019,10 @@ public class PlayerUnitController : MonoBehaviour
             _camera = Camera.main;
 
         if (_camera == null)
+        {
+            RefreshHUD();
             return;
+        }
 
         var allUnits = FindObjectsByType<Unit>(FindObjectsSortMode.None);
         var min = Vector2.Min(start, end);
@@ -1015,6 +1048,8 @@ public class PlayerUnitController : MonoBehaviour
 
             AddToSelection(unit);
         }
+
+        RefreshHUD();
     }
 
     private Unit GetOwnedUnitUnderCursor()
@@ -1053,17 +1088,19 @@ public class PlayerUnitController : MonoBehaviour
 
         var worldPoint = GetMouseWorldPoint();
         var hit = Physics2D.OverlapPoint(worldPoint, _unitMask);
+
         if (hit == null)
             return null;
 
         var attackTarget = hit.GetComponentInParent<MonoBehaviour>() as IAttackTarget;
+
         if (attackTarget == null)
             return null;
 
         if (!attackTarget.IsAlive)
             return null;
 
-        if (attackTarget.PlayerId == _localPlayerId)
+        if (attackTarget.TeamColor == GetSelectedTeamColor())
             return null;
 
         return attackTarget;
@@ -1139,6 +1176,9 @@ public class PlayerUnitController : MonoBehaviour
 
     private void AddToSelection(Unit unit)
     {
+        if (unit == null)
+            return;
+
         if (_selectedUnits.Contains(unit))
             return;
 
@@ -1149,7 +1189,10 @@ public class PlayerUnitController : MonoBehaviour
     private void ClearSelection()
     {
         for (int i = 0; i < _selectedUnits.Count; i++)
-            _selectedUnits[i].SetSelected(false);
+        {
+            if (_selectedUnits[i] != null)
+                _selectedUnits[i].SetSelected(false);
+        }
 
         _selectedUnits.Clear();
     }

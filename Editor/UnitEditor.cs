@@ -6,6 +6,7 @@ using UnityEngine;
 public class UnitEditor : Editor
 {
     private SerializedProperty _config;
+    private SerializedProperty _icon;
     private SerializedProperty _playerId;
     private SerializedProperty _selectableByLocalPlayer;
     private SerializedProperty _animator;
@@ -30,6 +31,7 @@ public class UnitEditor : Editor
     private SerializedProperty _arrowPrefab;
     private SerializedProperty _arrowSpawnPoint;
     private SerializedProperty _arrowSpawnPointRightLocalPosition;
+    private SerializedProperty _healEffectPrefab;
     private SerializedProperty _deathSmokePrefab;
     private SerializedProperty _deathSmokeLifetime;
     private SerializedProperty _drawAttackRange;
@@ -42,6 +44,7 @@ public class UnitEditor : Editor
     private void OnEnable()
     {
         _config = serializedObject.FindProperty("_config");
+        _icon = serializedObject.FindProperty("_icon");
         _playerId = serializedObject.FindProperty("_playerId");
         _selectableByLocalPlayer = serializedObject.FindProperty("_selectableByLocalPlayer");
         _animator = serializedObject.FindProperty("_animator");
@@ -66,6 +69,7 @@ public class UnitEditor : Editor
         _arrowPrefab = serializedObject.FindProperty("_arrowPrefab");
         _arrowSpawnPoint = serializedObject.FindProperty("_arrowSpawnPoint");
         _arrowSpawnPointRightLocalPosition = serializedObject.FindProperty("_arrowSpawnPointRightLocalPosition");
+        _healEffectPrefab = serializedObject.FindProperty("_healEffectPrefab");
         _deathSmokePrefab = serializedObject.FindProperty("_deathSmokePrefab");
         _deathSmokeLifetime = serializedObject.FindProperty("_deathSmokeLifetime");
         _drawAttackRange = serializedObject.FindProperty("_drawAttackRange");
@@ -93,6 +97,7 @@ public class UnitEditor : Editor
     {
         EditorGUILayout.LabelField("Core", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(_config);
+        EditorGUILayout.PropertyField(_icon);
         EditorGUILayout.PropertyField(_unitType);
         EditorGUILayout.PropertyField(_teamColor);
         EditorGUILayout.PropertyField(_playerId);
@@ -167,6 +172,9 @@ public class UnitEditor : Editor
             EditorGUILayout.PropertyField(_arrowSpawnPoint);
             EditorGUILayout.PropertyField(_arrowSpawnPointRightLocalPosition);
         }
+
+        if (unitType == UnitType.Monk)
+            EditorGUILayout.PropertyField(_healEffectPrefab);
 
         EditorGUILayout.PropertyField(_deathSmokePrefab);
         EditorGUILayout.PropertyField(_deathSmokeLifetime);

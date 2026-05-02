@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using TMPro;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -32,7 +31,20 @@ public class RTSHUDView : MonoBehaviour
     private readonly List<SelectionIconView> _selectionIcons = new();
     private readonly List<CommandButtonView> _commandButtons = new();
 
+    private string _lastCommandSignature;
+    private int _lastSelectionCount = -1;
+    private Unit _lastSingleUnit;
+
     public Button[] ControlGroupButtons => _controlGroupButtons;
+
+    private void Start()
+    {
+        if (_singleSelectionPanel != null)
+            _singleSelectionPanel.SetActive(false);
+
+        ClearSelectionIcons();
+        ClearCommandButtons();
+    }
 
     public void SetResources(PlayerResources resources)
     {
@@ -71,11 +83,24 @@ public class RTSHUDView : MonoBehaviour
 
     public void ShowSingleUnit(Unit unit)
     {
+        if (_lastSelectionCount == 1 && _lastSingleUnit == unit)
+        {
+            UpdateSingleUnitStats(unit);
+            return;
+        }
+
+        _lastSelectionCount = 1;
+        _lastSingleUnit = unit;
+
         ClearSelectionIcons();
 
         if (_singleSelectionPanel != null)
             _singleSelectionPanel.SetActive(unit != null);
 
+        UpdateSingleUnitStats(unit);
+    }
+    private void UpdateSingleUnitStats(Unit unit)
+    {
         if (unit == null)
             return;
 
@@ -88,13 +113,23 @@ public class RTSHUDView : MonoBehaviour
         if (_singleSelectionStatsText != null)
             _singleSelectionStatsText.text = $"HP: {Mathf.CeilToInt(unit.Context.CurrentHealth)}/{Mathf.CeilToInt(unit.Data.MaxHealth)}\nDamage: {unit.Data.AttackDamage}\nArmor: {unit.Data.Armor}";
     }
-
     public void ShowUnitList(IReadOnlyList<Unit> units, System.Action<Unit> onClick)
     {
+        var count = units != null ? units.Count : 0;
+
+        if (_lastSelectionCount == count && count != 1)
+            return;
+
+        _lastSelectionCount = count;
+        _lastSingleUnit = null;
+
         if (_singleSelectionPanel != null)
             _singleSelectionPanel.SetActive(false);
 
         ClearSelectionIcons();
+
+        if (units == null)
+            return;
 
         for (int i = 0; i < units.Count; i++)
         {
@@ -111,15 +146,45 @@ public class RTSHUDView : MonoBehaviour
 
     public void SetCommands(IReadOnlyList<RTSCommandDefinition> commands, System.Action<RTSCommandDefinition> onClick)
     {
+        var signature = CreateCommandSignature(commands);
+
+        if (_lastCommandSignature == signature)
+            return;
+
+        _lastCommandSignature = signature;
+
         ClearCommandButtons();
 
         for (int i = 0; i < commands.Count; i++)
         {
             var command = commands[i];
+
+            if (command == null)
+                continue;
+
             var button = Instantiate(_commandButtonPrefab, _commandButtonRoot);
             button.Initialize(command, onClick);
             _commandButtons.Add(button);
         }
+    }
+
+    private string CreateCommandSignature(IReadOnlyList<RTSCommandDefinition> commands)
+    {
+        if (commands == null || commands.Count == 0)
+            return string.Empty;
+
+        var signature = string.Empty;
+
+        for (int i = 0; i < commands.Count; i++)
+        {
+            if (commands[i] == null)
+                continue;
+
+            signature += commands[i].Type.ToString();
+            signature += "|";
+        }
+
+        return signature;
     }
 
     private void ClearSelectionIcons()
@@ -141,6 +206,7 @@ public class RTSHUDView : MonoBehaviour
                 Destroy(_commandButtons[i].gameObject);
         }
 
+        _lastCommandSignature = string.Empty;
         _commandButtons.Clear();
     }
 }

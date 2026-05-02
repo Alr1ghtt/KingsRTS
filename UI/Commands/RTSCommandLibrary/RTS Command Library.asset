@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3a33548219f2f54d872cae96d1383d8, type: 3}
+  m_Name: RTS Command Library
+  m_EditorClassIdentifier: Assembly-CSharp::RTSCommandLibrary
+  _move: {fileID: 11400000, guid: 85341549fb449b94d8c100804aab4882, type: 2}
+  _holdPosition: {fileID: 11400000, guid: 5e422c76399e9984096cc19991bfef56, type: 2}
+  _patrol: {fileID: 11400000, guid: 765934b6b5e9724489781b9ecf27bf1c, type: 2}
+  _attack: {fileID: 11400000, guid: fb17045b51c68294aa30a7fe7f7a47b2, type: 2}
+  _heal: {fileID: 11400000, guid: 018d23aeb02c7a249a97bf0d422aecd2, type: 2}
+  _repair: {fileID: 11400000, guid: a94e3403103472c46b6f2855c54006a0, type: 2}
+  _buildMenu: {fileID: 11400000, guid: e948b05c0978e9c418dd2396dc432649, type: 2}
+  _buildArchery: {fileID: 11400000, guid: fcc646d41d62b414193bf7bb72dba630, type: 2}
+  _buildBarracks: {fileID: 11400000, guid: 01ce5dfe68b7a9046822e8d7b212d1a3, type: 2}
+  _buildCastle: {fileID: 11400000, guid: 0cef1eee3bc723a41a99c4bfeea1e92a, type: 2}
+  _buildHouse: {fileID: 11400000, guid: 7ccb07c8b77bffb4099a2227b0dd92e7, type: 2}
+  _buildMonastery: {fileID: 11400000, guid: 7f3f55370399ba440a52650b555071e7, type: 2}
+  _buildTower: {fileID: 11400000, guid: 35401c88d672af549b4d768b001a2b7b, type: 2}

@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cb8b82765d9d16448c865b4d083b486, type: 3}
+  m_Name: Castle
+  m_EditorClassIdentifier: Assembly-CSharp::RTSCommandDefinition
+  _type: 9
+  _displayName: Castle
+  _hotkey: C
+  _icon: {fileID: 21300000, guid: d0349d8d3a04044f7a4810157b116b14, type: 3}
