@@ -114,6 +114,17 @@ public class UnitBrain
                 _context.RepairTarget = null;
                 _stateMachine.SetState(_healTargetState, _context);
                 break;
+            case UnitCommandType.Stop:
+                _combatSystem.CancelAttack(_context);
+                _context.AttackTarget = null;
+                _context.RepairTarget = null;
+                _context.HealTarget = null;
+                _context.PendingAttackTarget = null;
+                _context.MoveTargetPosition = _context.Transform.position;
+                _context.HoldAnchorPosition = _context.Transform.position;
+                _context.HasReturnTarget = false;
+                _stateMachine.SetState(_idleState, _context);
+                break;
         }
     }
 }

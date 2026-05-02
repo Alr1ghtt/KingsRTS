@@ -15,6 +15,13 @@ public class UnitCommand
     public IAttackTarget TargetToAttack => _attackTarget;
     public IRepairTarget TargetToRepair => _repairTarget;
     public IHealTarget TargetToHeal => _healTarget;
+    public static UnitCommand Stop()
+    {
+        return new UnitCommand
+        {
+            _type = UnitCommandType.Stop
+        };
+    }
     public static UnitCommand Heal(IHealTarget target)
     {
         return new UnitCommand

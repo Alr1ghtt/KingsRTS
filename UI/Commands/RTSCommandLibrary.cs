@@ -4,6 +4,7 @@ using UnityEngine;
 public class RTSCommandLibrary : ScriptableObject
 {
     [SerializeField] private RTSCommandDefinition _move;
+    [SerializeField] private RTSCommandDefinition _stop;
     [SerializeField] private RTSCommandDefinition _holdPosition;
     [SerializeField] private RTSCommandDefinition _patrol;
     [SerializeField] private RTSCommandDefinition _attack;
@@ -18,6 +19,7 @@ public class RTSCommandLibrary : ScriptableObject
     [SerializeField] private RTSCommandDefinition _buildTower;
 
     public RTSCommandDefinition Move => _move;
+    public RTSCommandDefinition Stop => _stop;
     public RTSCommandDefinition HoldPosition => _holdPosition;
     public RTSCommandDefinition Patrol => _patrol;
     public RTSCommandDefinition Attack => _attack;

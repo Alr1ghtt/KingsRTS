@@ -8,5 +8,6 @@ public enum UnitCommandType
     AttackTarget,
     Repair,
     Build,
-    Heal
+    Heal,
+    Stop
 }

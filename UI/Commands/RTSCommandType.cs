@@ -1,6 +1,7 @@
 public enum RTSCommandType
 {
     Move,
+    Stop,
     HoldPosition,
     Patrol,
     Attack,

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 public class PlayerUnitController : MonoBehaviour
 {
@@ -23,7 +24,6 @@ public class PlayerUnitController : MonoBehaviour
     [SerializeField] private LayerMask _unitMask = -1;
     [SerializeField] private float _clickSelectionThreshold = 8f;
 
-
     [Header("Building")]
     [SerializeField] private BuildingPlacementSystem _buildingPlacementSystem;
     [SerializeField] private BuildingPlacementPreview _buildingPlacementPreview;
@@ -42,20 +42,20 @@ public class PlayerUnitController : MonoBehaviour
 
     private readonly List<Unit>[] _controlGroups =
     {
-    new(),
-    new(),
-    new(),
-    new(),
-    new(),
-    new()
-};
+        new(),
+        new(),
+        new(),
+        new(),
+        new(),
+        new()
+    };
 
-    private bool _isBuildCommandPanelOpen;
     private readonly List<Unit> _selectedUnits = new();
     private readonly List<WorkerConstructionAgent> _selectedWorkers = new();
     private readonly List<RaycastResult> _uiRaycastResults = new();
 
     private InputMode _inputMode;
+    private bool _isBuildCommandPanelOpen;
     private bool _isDraggingSelection;
     private Vector2 _selectionStartScreen;
     private BuildingData _pendingBuildingData;
@@ -65,6 +65,45 @@ public class PlayerUnitController : MonoBehaviour
 
     public int LocalPlayerId => _localPlayerId;
     public List<Unit> SelectedUnits => _selectedUnits;
+
+    private void Awake()
+    {
+        _mouse = Mouse.current;
+        _keyboard = Keyboard.current;
+        BindHUDControlGroupButtons();
+    }
+
+    private void Update()
+    {
+        if (_mouse == null)
+            _mouse = Mouse.current;
+
+        if (_keyboard == null)
+            _keyboard = Keyboard.current;
+
+        RefreshSelectedWorkers();
+        HandleBuildSelectionHotkeys();
+        HandleModeHotkeys();
+        HandleSelection();
+        HandleOrders();
+        UpdateBuildPreview();
+        HandleControlGroups();
+
+        if (_hudView != null)
+            _hudView.RefreshDynamicSelectionStats(_selectedUnits);
+    }
+
+    public void SelectOnly(Unit unit)
+    {
+        ClearSelection();
+
+        if (unit == null)
+            return;
+
+        AddToSelection(unit);
+        RefreshHUD();
+    }
+
     private bool IsPointerOverUI()
     {
         if (EventSystem.current == null)
@@ -84,55 +123,21 @@ public class PlayerUnitController : MonoBehaviour
 
         for (int i = 0; i < _uiRaycastResults.Count; i++)
         {
-            if (_uiRaycastResults[i].gameObject == null)
+            var target = _uiRaycastResults[i].gameObject;
+
+            if (target == null)
                 continue;
 
-            if (!_uiRaycastResults[i].gameObject.activeInHierarchy)
+            if (!target.activeInHierarchy)
                 continue;
 
-            return true;
+            if (target.GetComponentInParent<Selectable>() != null)
+                return true;
         }
 
         return false;
     }
-    private void Awake()
-    {
-        _mouse = Mouse.current;
-        _keyboard = Keyboard.current;
-        BindHUDControlGroupButtons();
-    }
 
-    private void Update()
-    {
-        if (_mouse == null)
-            _mouse = Mouse.current;
-
-        if (_keyboard == null)
-            _keyboard = Keyboard.current;
-
-
-
-        RefreshSelectedWorkers();
-        HandleBuildSelectionHotkeys();
-        HandleModeHotkeys();
-        HandleSelection();
-        HandleOrders();
-        UpdateBuildPreview();
-        HandleControlGroups();
-
-        if (_hudView != null)
-            _hudView.RefreshDynamicSelectionStats(_selectedUnits);
-    }
-    public void SelectOnly(Unit unit)
-    {
-        ClearSelection();
-
-        if (unit == null)
-            return;
-
-        AddToSelection(unit);
-        RefreshHUD();
-    }
     private void SetActiveUICommand(RTSCommandType? commandType)
     {
         if (_hudView != null)
@@ -144,6 +149,7 @@ public class PlayerUnitController : MonoBehaviour
         if (_hudView != null)
             _hudView.FlashCommand(commandType);
     }
+
     private void BindHUDControlGroupButtons()
     {
         if (_hudView == null)
@@ -165,19 +171,21 @@ public class PlayerUnitController : MonoBehaviour
             buttons[i].onClick.AddListener(() => SelectControlGroup(index));
         }
     }
+
     private void HandleControlGroups()
     {
         if (_keyboard == null)
             return;
 
-        if (TryGetControlGroupKey(out var index))
-        {
-            if (IsCtrlPressed())
-                SaveControlGroup(index);
-            else
-                SelectControlGroup(index);
-        }
+        if (!TryGetControlGroupKey(out var index))
+            return;
+
+        if (IsCtrlPressed())
+            SaveControlGroup(index);
+        else
+            SelectControlGroup(index);
     }
+
     private bool TryGetControlGroupKey(out int index)
     {
         index = -1;
@@ -197,6 +205,7 @@ public class PlayerUnitController : MonoBehaviour
 
         return index >= 0;
     }
+
     private bool IsCtrlPressed()
     {
         if (_keyboard == null)
@@ -204,6 +213,7 @@ public class PlayerUnitController : MonoBehaviour
 
         return _keyboard.leftCtrlKey.isPressed || _keyboard.rightCtrlKey.isPressed;
     }
+
     private void SaveControlGroup(int index)
     {
         if (index < 0 || index >= _controlGroups.Length)
@@ -221,6 +231,7 @@ public class PlayerUnitController : MonoBehaviour
 
         RefreshHUD();
     }
+
     private void SelectControlGroup(int index)
     {
         if (index < 0 || index >= _controlGroups.Length)
@@ -243,8 +254,10 @@ public class PlayerUnitController : MonoBehaviour
 
         _inputMode = InputMode.Default;
         _isBuildCommandPanelOpen = false;
+        SetActiveUICommand(null);
         RefreshHUD();
     }
+
     private void RefreshHUD()
     {
         if (_hudView == null)
@@ -263,6 +276,7 @@ public class PlayerUnitController : MonoBehaviour
 
         _hudView.SetCommands(GetAvailableCommands(), HandleUICommand);
     }
+
     private int GetAliveControlGroupCount(int index)
     {
         if (index < 0 || index >= _controlGroups.Length)
@@ -285,6 +299,7 @@ public class PlayerUnitController : MonoBehaviour
 
         return count;
     }
+
     private IReadOnlyList<RTSCommandDefinition> GetAvailableCommands()
     {
         var commands = new List<RTSCommandDefinition>();
@@ -307,6 +322,7 @@ public class PlayerUnitController : MonoBehaviour
         }
 
         AddCommand(commands, _commandLibrary.Move);
+        AddCommand(commands, _commandLibrary.Stop);
         AddCommand(commands, _commandLibrary.HoldPosition);
         AddCommand(commands, _commandLibrary.Patrol);
 
@@ -352,19 +368,7 @@ public class PlayerUnitController : MonoBehaviour
 
         return true;
     }
-    private bool HasSelectedMonk()
-    {
-        for (int i = 0; i < _selectedUnits.Count; i++)
-        {
-            if (_selectedUnits[i] == null)
-                continue;
 
-            if (_selectedUnits[i].UnitType == UnitType.Monk)
-                return true;
-        }
-
-        return false;
-    }
     private bool HasAnySelectedAttacker()
     {
         for (int i = 0; i < _selectedUnits.Count; i++)
@@ -378,6 +382,7 @@ public class PlayerUnitController : MonoBehaviour
 
         return false;
     }
+
     private void HandleUICommand(RTSCommandDefinition command)
     {
         if (command == null)
@@ -389,6 +394,14 @@ public class PlayerUnitController : MonoBehaviour
                 _inputMode = InputMode.Move;
                 _isBuildCommandPanelOpen = false;
                 SetActiveUICommand(RTSCommandType.Move);
+                break;
+
+            case RTSCommandType.Stop:
+                IssueStopOrder();
+                _inputMode = InputMode.Default;
+                _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(null);
+                FlashUICommand(RTSCommandType.Stop);
                 break;
 
             case RTSCommandType.HoldPosition:
@@ -477,16 +490,6 @@ public class PlayerUnitController : MonoBehaviour
 
         RefreshHUD();
     }
-    private void CancelSelectedWorkersConstructionOrders()
-    {
-        for (int i = 0; i < _selectedWorkers.Count; i++)
-        {
-            if (_selectedWorkers[i] == null)
-                continue;
-
-            _selectedWorkers[i].CancelConstructionOrder();
-        }
-    }
 
     private void HandleBuildSelectionHotkeys()
     {
@@ -558,6 +561,17 @@ public class PlayerUnitController : MonoBehaviour
 
         if (_inputMode == InputMode.Build && _pendingBuildingData != null)
             return;
+
+        if (_keyboard.sKey.wasPressedThisFrame)
+        {
+            IssueStopOrder();
+            _inputMode = InputMode.Default;
+            _isBuildCommandPanelOpen = false;
+            SetActiveUICommand(null);
+            FlashUICommand(RTSCommandType.Stop);
+            RefreshHUD();
+            return;
+        }
 
         if (_keyboard.mKey.wasPressedThisFrame)
         {
@@ -689,72 +703,7 @@ public class PlayerUnitController : MonoBehaviour
                 HandleBoxSelection(_selectionStartScreen, currentMousePosition, additiveSelection);
         }
     }
-    private void IssueHealOrder()
-    {
-        var healTarget = GetHealTargetUnderCursor();
 
-        if (healTarget == null)
-        {
-            _inputMode = InputMode.Default;
-            return;
-        }
-
-        for (int i = 0; i < _selectedUnits.Count; i++)
-        {
-            var unit = _selectedUnits[i];
-
-            if (unit == null)
-                continue;
-
-            if (unit.UnitType != UnitType.Monk)
-                continue;
-
-            unit.ApplyCommand(UnitCommand.Heal(healTarget));
-        }
-
-        _inputMode = InputMode.Default;
-        SetActiveUICommand(null);
-    }
-    private IHealTarget GetHealTargetUnderCursor()
-    {
-        if (_camera == null)
-            _camera = Camera.main;
-
-        if (_camera == null || _mouse == null)
-            return null;
-
-        var worldPoint = GetMouseWorldPoint();
-        var hit = Physics2D.OverlapPoint(worldPoint, _unitMask);
-
-        if (hit == null)
-            return null;
-
-        var healTarget = hit.GetComponentInParent<MonoBehaviour>() as IHealTarget;
-
-        if (healTarget == null)
-            return null;
-
-        if (!healTarget.IsAlive)
-            return null;
-
-        if (healTarget.TeamColor != GetSelectedTeamColor())
-            return null;
-
-        if (!healTarget.NeedsHeal)
-            return null;
-
-        return healTarget;
-    }
-    private TeamColor GetSelectedTeamColor()
-    {
-        for (int i = 0; i < _selectedUnits.Count; i++)
-        {
-            if (_selectedUnits[i] != null)
-                return _selectedUnits[i].TeamColor;
-        }
-
-        return TeamColor.Black;
-    }
     private void HandleOrders()
     {
         if (_selectedUnits.Count == 0)
@@ -804,24 +753,245 @@ public class PlayerUnitController : MonoBehaviour
                 break;
         }
     }
+
+    private void IssueStopOrder()
+    {
+        CancelSelectedWorkersConstructionOrders();
+
+        for (int i = 0; i < _selectedUnits.Count; i++)
+        {
+            if (_selectedUnits[i] == null)
+                continue;
+
+            _selectedUnits[i].ApplyCommand(UnitCommand.Stop());
+        }
+
+        _pendingBuildingData = null;
+
+        if (_buildingPlacementPreview != null)
+            _buildingPlacementPreview.Hide();
+    }
+
+    private void IssueMoveOrder()
+    {
+        CancelSelectedWorkersConstructionOrders();
+
+        if (_groundClickRaycaster == null)
+            return;
+
+        if (!_groundClickRaycaster.TryGetGroundPoint(out var point))
+            return;
+
+        var orders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, point);
+        ApplyOrders(orders);
+        _inputMode = InputMode.Default;
+        SetActiveUICommand(null);
+    }
+
+    private void IssuePatrolOrder()
+    {
+        CancelSelectedWorkersConstructionOrders();
+
+        if (_groundClickRaycaster == null)
+            return;
+
+        if (!_groundClickRaycaster.TryGetGroundPoint(out var point))
+            return;
+
+        var orders = UnitOrderFactory.CreatePatrolOrders(_selectedUnits, point);
+        ApplyOrders(orders);
+        _inputMode = InputMode.Default;
+        SetActiveUICommand(null);
+    }
+
+    private void IssueAttackOrder()
+    {
+        CancelSelectedWorkersConstructionOrders();
+
+        var attackTarget = GetAttackTargetUnderCursor();
+
+        if (attackTarget != null)
+        {
+            var directOrders = UnitOrderFactory.CreateAttackTargetOrders(_selectedUnits, attackTarget);
+            ApplyOrders(directOrders);
+            _inputMode = InputMode.Default;
+            SetActiveUICommand(null);
+            return;
+        }
+
+        if (_groundClickRaycaster == null)
+            return;
+
+        if (!_groundClickRaycaster.TryGetGroundPoint(out var point))
+            return;
+
+        var attackMoveOrders = UnitOrderFactory.CreateAttackMoveOrders(_selectedUnits, point);
+        ApplyOrders(attackMoveOrders);
+        _inputMode = InputMode.Default;
+        SetActiveUICommand(null);
+    }
+
+    private void IssueRepairOrder()
+    {
+        CancelSelectedWorkersConstructionOrders();
+
+        if (!AreAllSelectedWorkers())
+        {
+            _inputMode = InputMode.Default;
+            SetActiveUICommand(null);
+            return;
+        }
+
+        var repairTarget = GetRepairTargetUnderCursor();
+
+        if (repairTarget == null)
+        {
+            _inputMode = InputMode.Default;
+            SetActiveUICommand(null);
+            return;
+        }
+
+        var orders = UnitOrderFactory.CreateRepairOrders(_selectedUnits, repairTarget);
+        ApplyOrders(orders);
+        _inputMode = InputMode.Default;
+        SetActiveUICommand(null);
+    }
+
+    private void IssueHealOrder()
+    {
+        var healTarget = GetHealTargetUnderCursor();
+
+        if (healTarget == null)
+        {
+            _inputMode = InputMode.Default;
+            SetActiveUICommand(null);
+            return;
+        }
+
+        for (int i = 0; i < _selectedUnits.Count; i++)
+        {
+            var unit = _selectedUnits[i];
+
+            if (unit == null)
+                continue;
+
+            if (unit.UnitType != UnitType.Monk)
+                continue;
+
+            unit.ApplyCommand(UnitCommand.Heal(healTarget));
+        }
+
+        _inputMode = InputMode.Default;
+        SetActiveUICommand(null);
+    }
+
+    private void HandleContextRightClick()
+    {
+        if (TryAssignWorkersToConstructionSiteUnderCursor())
+        {
+            _inputMode = InputMode.Default;
+            SetActiveUICommand(null);
+            return;
+        }
+
+        CancelSelectedWorkersConstructionOrders();
+
+        var attackTarget = GetAttackTargetUnderCursor();
+
+        if (attackTarget != null)
+        {
+            var attackOrders = UnitOrderFactory.CreateAttackTargetOrders(_selectedUnits, attackTarget);
+            ApplyOrders(attackOrders);
+            _inputMode = InputMode.Default;
+            SetActiveUICommand(null);
+            return;
+        }
+
+        if (AreAllSelectedWorkers())
+        {
+            var repairTarget = GetRepairTargetUnderCursor();
+
+            if (repairTarget != null)
+            {
+                var repairOrders = UnitOrderFactory.CreateRepairOrders(_selectedUnits, repairTarget);
+                ApplyOrders(repairOrders);
+                _inputMode = InputMode.Default;
+                SetActiveUICommand(null);
+                return;
+            }
+        }
+
+        if (_groundClickRaycaster != null && _groundClickRaycaster.TryGetGroundPoint(out var movePoint))
+        {
+            var moveOrders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, movePoint);
+            ApplyOrders(moveOrders);
+            _inputMode = InputMode.Default;
+            SetActiveUICommand(null);
+        }
+    }
+
+    private bool TryAssignWorkersToConstructionSiteUnderCursor()
+    {
+        if (_camera == null)
+            _camera = Camera.main;
+
+        if (_camera == null || _mouse == null)
+            return false;
+
+        if (_selectedWorkers.Count == 0)
+            return false;
+
+        var worldPoint = GetMouseWorldPoint();
+        var hit = Physics2D.OverlapPoint(worldPoint, _unitMask);
+
+        if (hit == null)
+            return false;
+
+        var site = hit.GetComponentInParent<ConstructionSite>();
+
+        if (site == null)
+            return false;
+
+        var firstWorker = GetFirstSelectedWorker();
+
+        if (firstWorker == null)
+            return false;
+
+        LogBuild($"Назначение рабочих на существующую стройку: {site.BuildingData.DisplayName}");
+
+        for (int i = 0; i < _selectedWorkers.Count; i++)
+        {
+            if (_selectedWorkers[i] == null)
+                continue;
+
+            _selectedWorkers[i].AssignToSite(site);
+        }
+
+        var targetPoint = GetConstructionSiteApproachPoint(site, firstWorker.transform.position);
+        var moveOrders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, targetPoint);
+        ApplyOrders(moveOrders);
+
+        return true;
+    }
+
     private Vector3 CalculateBuildApproachPoint(Vector3 buildPoint, Vector3 workerPosition)
     {
-        Vector2 buildAreaSize = new Vector2(2.664385f, 2.664385f);
-        Vector2 buildAreaOffset = new Vector2(0.008683f, 0f);
-        float padding = 0.65f;
-        float insideOffset = 0.35f;
+        var buildAreaSize = new Vector2(2.664385f, 2.664385f);
+        var buildAreaOffset = new Vector2(0.008683f, 0f);
+        var padding = 0.65f;
+        var insideOffset = 0.35f;
 
-        Vector3 center = buildPoint + new Vector3(buildAreaOffset.x, buildAreaOffset.y, 0f);
-        Vector3 offset = workerPosition - center;
+        var center = buildPoint + new Vector3(buildAreaOffset.x, buildAreaOffset.y, 0f);
+        var offset = workerPosition - center;
         offset.z = 0f;
 
-        float halfWidth = buildAreaSize.x * 0.5f + padding;
-        float halfHeight = buildAreaSize.y * 0.5f + padding;
+        var halfWidth = buildAreaSize.x * 0.5f + padding;
+        var halfHeight = buildAreaSize.y * 0.5f + padding;
 
-        Vector3 approachPoint = center;
+        var approachPoint = center;
 
-        float normalizedX = Mathf.Abs(offset.x) / halfWidth;
-        float normalizedY = Mathf.Abs(offset.y) / halfHeight;
+        var normalizedX = Mathf.Abs(offset.x) / halfWidth;
+        var normalizedY = Mathf.Abs(offset.y) / halfHeight;
 
         if (normalizedX > normalizedY)
         {
@@ -837,6 +1007,7 @@ public class PlayerUnitController : MonoBehaviour
         approachPoint.z = buildPoint.z;
         return approachPoint;
     }
+
     private void HandleBuildPlacement()
     {
         if (_mouse == null)
@@ -860,7 +1031,8 @@ public class PlayerUnitController : MonoBehaviour
         if (!_groundClickRaycaster.TryGetGroundPoint(out var point))
             return;
 
-        WorkerConstructionAgent firstWorker = GetFirstSelectedWorker();
+        var firstWorker = GetFirstSelectedWorker();
+
         if (firstWorker == null)
         {
             LogBuild("Нет выбранного рабочего для строительства");
@@ -868,7 +1040,7 @@ public class PlayerUnitController : MonoBehaviour
             return;
         }
 
-        Vector3 approachPoint = CalculateBuildApproachPoint(point, firstWorker.transform.position);
+        var approachPoint = CalculateBuildApproachPoint(point, firstWorker.transform.position);
 
         LogBuild($"Выбрана точка строительства {_pendingBuildingData.DisplayName}: {point}, точка подхода: {approachPoint}");
 
@@ -877,7 +1049,7 @@ public class PlayerUnitController : MonoBehaviour
             if (_selectedWorkers[i] == null)
                 continue;
 
-            Vector3 workerApproachPoint = CalculateBuildApproachPoint(point, _selectedWorkers[i].transform.position);
+            var workerApproachPoint = CalculateBuildApproachPoint(point, _selectedWorkers[i].transform.position);
             _selectedWorkers[i].StartPendingBuild(_pendingBuildingData, point, workerApproachPoint, _localPlayerId, _selectedWorkers[i].Unit.TeamColor, _buildingPlacementSystem);
         }
 
@@ -947,7 +1119,8 @@ public class PlayerUnitController : MonoBehaviour
             if (_selectedUnits[i] == null)
                 continue;
 
-            WorkerConstructionAgent worker = _selectedUnits[i].GetComponent<WorkerConstructionAgent>();
+            var worker = _selectedUnits[i].GetComponent<WorkerConstructionAgent>();
+
             if (worker == null)
                 continue;
 
@@ -969,97 +1142,13 @@ public class PlayerUnitController : MonoBehaviour
         return null;
     }
 
-    private void HandleContextRightClick()
-    {
-        if (TryAssignWorkersToConstructionSiteUnderCursor())
-        {
-            _inputMode = InputMode.Default;
-            SetActiveUICommand(null);
-            return;
-        }
-
-        CancelSelectedWorkersConstructionOrders();
-
-        var attackTarget = GetAttackTargetUnderCursor();
-        if (attackTarget != null)
-        {
-            var attackOrders = UnitOrderFactory.CreateAttackTargetOrders(_selectedUnits, attackTarget);
-            ApplyOrders(attackOrders);
-            _inputMode = InputMode.Default;
-            SetActiveUICommand(null);
-            return;
-        }
-
-        if (AreAllSelectedWorkers())
-        {
-            var repairTarget = GetRepairTargetUnderCursor();
-            if (repairTarget != null)
-            {
-                var repairOrders = UnitOrderFactory.CreateRepairOrders(_selectedUnits, repairTarget);
-                ApplyOrders(repairOrders);
-                _inputMode = InputMode.Default;
-                SetActiveUICommand(null);
-                return;
-            }
-        }
-
-        if (_groundClickRaycaster != null && _groundClickRaycaster.TryGetGroundPoint(out var movePoint))
-        {
-            var moveOrders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, movePoint);
-            ApplyOrders(moveOrders);
-            _inputMode = InputMode.Default;
-            SetActiveUICommand(null);
-        }
-    }
-
-    private bool TryAssignWorkersToConstructionSiteUnderCursor()
-    {
-        if (_camera == null)
-            _camera = Camera.main;
-
-        if (_camera == null || _mouse == null)
-            return false;
-
-        if (_selectedWorkers.Count == 0)
-            return false;
-
-        var worldPoint = GetMouseWorldPoint();
-        var hit = Physics2D.OverlapPoint(worldPoint);
-        if (hit == null)
-            return false;
-
-        ConstructionSite site = hit.GetComponentInParent<ConstructionSite>();
-        if (site == null)
-            return false;
-
-        WorkerConstructionAgent firstWorker = GetFirstSelectedWorker();
-        if (firstWorker == null)
-            return false;
-
-        LogBuild($"Назначение рабочих на существующую стройку: {site.BuildingData.DisplayName}");
-
-        for (int i = 0; i < _selectedWorkers.Count; i++)
-        {
-            if (_selectedWorkers[i] == null)
-                continue;
-
-            _selectedWorkers[i].AssignToSite(site);
-        }
-
-        Vector3 targetPoint = GetConstructionSiteApproachPoint(site, firstWorker.transform.position);
-        var moveOrders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, targetPoint);
-        ApplyOrders(moveOrders);
-
-        return true;
-    }
     private Vector3 GetConstructionSiteApproachPoint(ConstructionSite site, Vector3 workerPosition)
     {
         if (site == null)
             return workerPosition;
 
-        Vector3 targetPoint = site.GetClosestBuildPerimeterPoint(workerPosition);
-
-        Vector3 toCenter = site.transform.position - targetPoint;
+        var targetPoint = site.GetClosestBuildPerimeterPoint(workerPosition);
+        var toCenter = site.transform.position - targetPoint;
         toCenter.z = 0f;
 
         if (toCenter.sqrMagnitude > 0.0001f)
@@ -1069,85 +1158,6 @@ public class PlayerUnitController : MonoBehaviour
         }
 
         return targetPoint;
-    }
-    private void IssueMoveOrder()
-    {
-        CancelSelectedWorkersConstructionOrders();
-
-        if (_groundClickRaycaster == null)
-            return;
-
-        if (!_groundClickRaycaster.TryGetGroundPoint(out var point))
-            return;
-
-        var orders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, point);
-        ApplyOrders(orders);
-        _inputMode = InputMode.Default;
-        SetActiveUICommand(null);
-    }
-
-    private void IssuePatrolOrder()
-    {
-        CancelSelectedWorkersConstructionOrders();
-
-        if (_groundClickRaycaster == null)
-            return;
-
-        if (!_groundClickRaycaster.TryGetGroundPoint(out var point))
-            return;
-
-        var orders = UnitOrderFactory.CreatePatrolOrders(_selectedUnits, point);
-        ApplyOrders(orders);
-        _inputMode = InputMode.Default;
-        SetActiveUICommand(null);
-    }
-
-    private void IssueAttackOrder()
-    {
-        CancelSelectedWorkersConstructionOrders();
-
-        var attackTarget = GetAttackTargetUnderCursor();
-        if (attackTarget != null)
-        {
-            var directOrders = UnitOrderFactory.CreateAttackTargetOrders(_selectedUnits, attackTarget);
-            ApplyOrders(directOrders);
-            _inputMode = InputMode.Default;
-            return;
-        }
-
-        if (_groundClickRaycaster == null)
-            return;
-
-        if (!_groundClickRaycaster.TryGetGroundPoint(out var point))
-            return;
-
-        var attackMoveOrders = UnitOrderFactory.CreateAttackMoveOrders(_selectedUnits, point);
-        ApplyOrders(attackMoveOrders);
-        _inputMode = InputMode.Default;
-        SetActiveUICommand(null);
-    }
-
-    private void IssueRepairOrder()
-    {
-        CancelSelectedWorkersConstructionOrders();
-
-        if (!AreAllSelectedWorkers())
-        {
-            _inputMode = InputMode.Default;
-            return;
-        }
-
-        var repairTarget = GetRepairTargetUnderCursor();
-        if (repairTarget == null)
-        {
-            _inputMode = InputMode.Default;
-            return;
-        }
-
-        var orders = UnitOrderFactory.CreateRepairOrders(_selectedUnits, repairTarget);
-        ApplyOrders(orders);
-        _inputMode = InputMode.Default;
-        SetActiveUICommand(null);
     }
 
     private void HandleClickSelection(bool additiveSelection)
@@ -1228,10 +1238,12 @@ public class PlayerUnitController : MonoBehaviour
 
         var worldPoint = GetMouseWorldPoint();
         var hit = Physics2D.OverlapPoint(worldPoint, _unitMask);
+
         if (hit == null)
             return null;
 
         var unit = hit.GetComponentInParent<Unit>();
+
         if (unit == null)
             return null;
 
@@ -1258,18 +1270,63 @@ public class PlayerUnitController : MonoBehaviour
         if (hit == null)
             return null;
 
-        var attackTarget = hit.GetComponentInParent<IAttackTarget>();
+        var behaviours = hit.GetComponentsInParent<MonoBehaviour>();
 
-        if (attackTarget == null)
+        for (int i = 0; i < behaviours.Length; i++)
+        {
+            var target = behaviours[i] as IAttackTarget;
+
+            if (target == null)
+                continue;
+
+            if (!target.IsAlive)
+                continue;
+
+            if (target.TeamColor == GetSelectedTeamColor())
+                continue;
+
+            return target;
+        }
+
+        return null;
+    }
+
+    private IHealTarget GetHealTargetUnderCursor()
+    {
+        if (_camera == null)
+            _camera = Camera.main;
+
+        if (_camera == null || _mouse == null)
             return null;
 
-        if (!attackTarget.IsAlive)
+        var worldPoint = GetMouseWorldPoint();
+        var hit = Physics2D.OverlapPoint(worldPoint, _unitMask);
+
+        if (hit == null)
             return null;
 
-        if (attackTarget.TeamColor == GetSelectedTeamColor())
-            return null;
+        var behaviours = hit.GetComponentsInParent<MonoBehaviour>();
 
-        return attackTarget;
+        for (int i = 0; i < behaviours.Length; i++)
+        {
+            var target = behaviours[i] as IHealTarget;
+
+            if (target == null)
+                continue;
+
+            if (!target.IsAlive)
+                continue;
+
+            if (target.TeamColor != GetSelectedTeamColor())
+                continue;
+
+            if (!target.NeedsHeal)
+                continue;
+
+            return target;
+        }
+
+        return null;
     }
 
     private IRepairTarget GetRepairTargetUnderCursor()
@@ -1282,26 +1339,46 @@ public class PlayerUnitController : MonoBehaviour
 
         var worldPoint = GetMouseWorldPoint();
         var hit = Physics2D.OverlapPoint(worldPoint, _unitMask);
+
         if (hit == null)
             return null;
 
-        var repairTarget = hit.GetComponentInParent<MonoBehaviour>() as IRepairTarget;
-        if (repairTarget == null)
-            return null;
+        var behaviours = hit.GetComponentsInParent<MonoBehaviour>();
 
-        if (!repairTarget.IsAlive)
-            return null;
+        for (int i = 0; i < behaviours.Length; i++)
+        {
+            var target = behaviours[i] as IRepairTarget;
 
-        if (!repairTarget.CanBeRepaired)
-            return null;
+            if (target == null)
+                continue;
 
-        if (!repairTarget.NeedsRepair)
-            return null;
+            if (!target.IsAlive)
+                continue;
 
-        if (repairTarget.PlayerId != _localPlayerId)
-            return null;
+            if (!target.CanBeRepaired)
+                continue;
 
-        return repairTarget;
+            if (!target.NeedsRepair)
+                continue;
+
+            if (target.PlayerId != _localPlayerId)
+                continue;
+
+            return target;
+        }
+
+        return null;
+    }
+
+    private TeamColor GetSelectedTeamColor()
+    {
+        for (int i = 0; i < _selectedUnits.Count; i++)
+        {
+            if (_selectedUnits[i] != null)
+                return _selectedUnits[i].TeamColor;
+        }
+
+        return TeamColor.Black;
     }
 
     private Vector3 GetMouseWorldPoint()
@@ -1319,6 +1396,9 @@ public class PlayerUnitController : MonoBehaviour
 
         for (int i = 0; i < _selectedUnits.Count; i++)
         {
+            if (_selectedUnits[i] == null)
+                return false;
+
             if (!_selectedUnits[i].Data.CanRepair && !_selectedUnits[i].Data.CanBuild)
                 return false;
         }
@@ -1337,7 +1417,12 @@ public class PlayerUnitController : MonoBehaviour
     private void ApplyOrders(IReadOnlyList<UnitCommand> orders)
     {
         for (int i = 0; i < _selectedUnits.Count && i < orders.Count; i++)
+        {
+            if (_selectedUnits[i] == null)
+                continue;
+
             _selectedUnits[i].ApplyCommand(orders[i]);
+        }
     }
 
     private void AddToSelection(Unit unit)
@@ -1361,6 +1446,17 @@ public class PlayerUnitController : MonoBehaviour
         }
 
         _selectedUnits.Clear();
+    }
+
+    private void CancelSelectedWorkersConstructionOrders()
+    {
+        for (int i = 0; i < _selectedWorkers.Count; i++)
+        {
+            if (_selectedWorkers[i] == null)
+                continue;
+
+            _selectedWorkers[i].CancelConstructionOrder();
+        }
     }
 
     private void LogBuild(string message)
