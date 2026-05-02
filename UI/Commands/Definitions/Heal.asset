@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RTSCommandDefinition
   _type: 4
   _displayName: Heal
-  _hotkey: H
+  _hotkey: A
   _icon: {fileID: 2903848411162822477, guid: 8baff92a2bfbfc944b1319be6ccaf0b4, type: 3}

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ConstructionSite : MonoBehaviour
+public class ConstructionSite : MonoBehaviour, IAttackTarget, IRepairTarget, IHealthViewTarget
 {
     [SerializeField] private BuildingData _buildingData;
     [SerializeField] private int _ownerPlayerId;
@@ -13,17 +13,38 @@ public class ConstructionSite : MonoBehaviour
     [SerializeField] private Collider2D _buildCollider;
     [SerializeField] private float _buildPerimeterPadding = 0.6f;
 
+    [Header("Health")]
+    [SerializeField] private int _currentHealth;
+    [SerializeField] private GameObject _deathSmokePrefab;
+    [SerializeField] private float _deathSmokeLifetime = 1f;
+
     private readonly List<ConstructionWorkerSlot> _workers = new List<ConstructionWorkerSlot>();
+    private bool _isDestroyed;
 
     public BuildingData BuildingData => _buildingData;
     public int OwnerPlayerId => _ownerPlayerId;
+    public int PlayerId => _ownerPlayerId;
     public TeamColor TeamColor => _teamColor;
     public float CurrentProgress => _currentProgress;
     public float BuildTime => _buildingData != null ? _buildingData.BuildTime : 0f;
     public bool IsCompleted => _isCompleted;
+    public bool IsDestroyed => _isDestroyed;
     public Vector3 WorkPoint => _workPoint != null ? _workPoint.position : transform.position;
     public int ActiveWorkersCount => GetActiveWorkersCount();
     public float NormalizedProgress => _buildingData == null || _buildingData.BuildTime <= 0f ? 0f : Mathf.Clamp01(_currentProgress / _buildingData.BuildTime);
+
+    public bool IsAlive => !_isDestroyed && !_isCompleted && _currentHealth > 0;
+    public Vector3 Position => transform.position;
+    public bool CanBeRepaired => !_isDestroyed && !_isCompleted;
+    public bool NeedsRepair => !_isDestroyed && !_isCompleted && _buildingData != null && _currentHealth < _buildingData.MaxHealth;
+    public float CurrentHealth => _currentHealth;
+    public float MaxHealth => _buildingData != null ? _buildingData.MaxHealth : 100f;
+
+    private void Awake()
+    {
+        if (_buildingData != null && _currentHealth <= 0)
+            _currentHealth = _buildingData.MaxHealth;
+    }
 
     public void Initialize(BuildingData buildingData, int ownerPlayerId, TeamColor teamColor)
     {
@@ -31,7 +52,9 @@ public class ConstructionSite : MonoBehaviour
         _ownerPlayerId = ownerPlayerId;
         _teamColor = teamColor;
         _currentProgress = 0f;
+        _currentHealth = _buildingData != null ? _buildingData.MaxHealth : 100;
         _isCompleted = false;
+        _isDestroyed = false;
         _workers.Clear();
 
         Log($"Создана стройплощадка {_buildingData.DisplayName}, игрок {_ownerPlayerId}, команда {_teamColor}");
@@ -39,6 +62,9 @@ public class ConstructionSite : MonoBehaviour
 
     public bool CanAssignWorker(WorkerConstructionAgent worker)
     {
+        if (_isDestroyed)
+            return false;
+
         if (_isCompleted)
             return false;
 
@@ -84,7 +110,13 @@ public class ConstructionSite : MonoBehaviour
 
     public void Tick(float deltaTime)
     {
+        if (_isDestroyed)
+            return;
+
         if (_isCompleted)
+            return;
+
+        if (_buildingData == null)
             return;
 
         CleanupWorkers();
@@ -101,6 +133,41 @@ public class ConstructionSite : MonoBehaviour
             _currentProgress = _buildingData.BuildTime;
             CompleteConstruction();
         }
+    }
+
+    public void TakeDamage(float damage)
+    {
+        if (_isDestroyed)
+            return;
+
+        if (_isCompleted)
+            return;
+
+        if (damage <= 0f)
+            return;
+
+        int armor = _buildingData != null ? _buildingData.Armor : 0;
+        int finalDamage = Mathf.Max(Mathf.CeilToInt(damage) - armor, 1);
+
+        _currentHealth = Mathf.Max(0, _currentHealth - finalDamage);
+
+        if (_currentHealth <= 0)
+            DestroySite();
+    }
+
+    public void Repair(float amount)
+    {
+        if (_isDestroyed)
+            return;
+
+        if (_isCompleted)
+            return;
+
+        if (amount <= 0f)
+            return;
+
+        int maxHealth = _buildingData != null ? _buildingData.MaxHealth : 100;
+        _currentHealth = Mathf.Min(maxHealth, _currentHealth + Mathf.CeilToInt(amount));
     }
 
     public bool IsPointInBuildPerimeter(Vector3 point)
@@ -170,6 +237,9 @@ public class ConstructionSite : MonoBehaviour
 
     private void CompleteConstruction()
     {
+        if (_isDestroyed)
+            return;
+
         if (_isCompleted)
             return;
 
@@ -199,6 +269,32 @@ public class ConstructionSite : MonoBehaviour
         building.Initialize(_buildingData, _ownerPlayerId, _teamColor);
 
         Log($"Создано здание {_buildingData.DisplayName}, игрок {_ownerPlayerId}, команда {_teamColor}");
+
+        Destroy(gameObject);
+    }
+
+    private void DestroySite()
+    {
+        if (_isDestroyed)
+            return;
+
+        _isDestroyed = true;
+
+        for (int i = _workers.Count - 1; i >= 0; i--)
+        {
+            if (_workers[i].Worker != null)
+                _workers[i].Worker.CancelConstructionOrder();
+        }
+
+        _workers.Clear();
+
+        if (_deathSmokePrefab != null)
+        {
+            GameObject smoke = Instantiate(_deathSmokePrefab, transform.position, Quaternion.identity);
+
+            if (_deathSmokeLifetime > 0f)
+                Destroy(smoke, _deathSmokeLifetime);
+        }
 
         Destroy(gameObject);
     }

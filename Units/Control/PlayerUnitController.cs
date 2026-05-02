@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.EventSystems;
 
 public class PlayerUnitController : MonoBehaviour
 {
@@ -21,6 +22,7 @@ public class PlayerUnitController : MonoBehaviour
     [SerializeField] private SelectionBoxView _selectionBoxView;
     [SerializeField] private LayerMask _unitMask = -1;
     [SerializeField] private float _clickSelectionThreshold = 8f;
+
 
     [Header("Building")]
     [SerializeField] private BuildingPlacementSystem _buildingPlacementSystem;
@@ -51,6 +53,7 @@ public class PlayerUnitController : MonoBehaviour
     private bool _isBuildCommandPanelOpen;
     private readonly List<Unit> _selectedUnits = new();
     private readonly List<WorkerConstructionAgent> _selectedWorkers = new();
+    private readonly List<RaycastResult> _uiRaycastResults = new();
 
     private InputMode _inputMode;
     private bool _isDraggingSelection;
@@ -62,7 +65,36 @@ public class PlayerUnitController : MonoBehaviour
 
     public int LocalPlayerId => _localPlayerId;
     public List<Unit> SelectedUnits => _selectedUnits;
+    private bool IsPointerOverUI()
+    {
+        if (EventSystem.current == null)
+            return false;
 
+        if (_mouse == null)
+            return false;
+
+        _uiRaycastResults.Clear();
+
+        var pointerData = new PointerEventData(EventSystem.current)
+        {
+            position = _mouse.position.ReadValue()
+        };
+
+        EventSystem.current.RaycastAll(pointerData, _uiRaycastResults);
+
+        for (int i = 0; i < _uiRaycastResults.Count; i++)
+        {
+            if (_uiRaycastResults[i].gameObject == null)
+                continue;
+
+            if (!_uiRaycastResults[i].gameObject.activeInHierarchy)
+                continue;
+
+            return true;
+        }
+
+        return false;
+    }
     private void Awake()
     {
         _mouse = Mouse.current;
@@ -78,6 +110,8 @@ public class PlayerUnitController : MonoBehaviour
         if (_keyboard == null)
             _keyboard = Keyboard.current;
 
+
+
         RefreshSelectedWorkers();
         HandleBuildSelectionHotkeys();
         HandleModeHotkeys();
@@ -85,6 +119,9 @@ public class PlayerUnitController : MonoBehaviour
         HandleOrders();
         UpdateBuildPreview();
         HandleControlGroups();
+
+        if (_hudView != null)
+            _hudView.RefreshDynamicSelectionStats(_selectedUnits);
     }
     public void SelectOnly(Unit unit)
     {
@@ -95,6 +132,17 @@ public class PlayerUnitController : MonoBehaviour
 
         AddToSelection(unit);
         RefreshHUD();
+    }
+    private void SetActiveUICommand(RTSCommandType? commandType)
+    {
+        if (_hudView != null)
+            _hudView.SetActiveCommand(commandType);
+    }
+
+    private void FlashUICommand(RTSCommandType commandType)
+    {
+        if (_hudView != null)
+            _hudView.FlashCommand(commandType);
     }
     private void BindHUDControlGroupButtons()
     {
@@ -340,6 +388,7 @@ public class PlayerUnitController : MonoBehaviour
             case RTSCommandType.Move:
                 _inputMode = InputMode.Move;
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.Move);
                 break;
 
             case RTSCommandType.HoldPosition:
@@ -351,26 +400,32 @@ public class PlayerUnitController : MonoBehaviour
 
                 _inputMode = InputMode.Default;
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(null);
+                FlashUICommand(RTSCommandType.HoldPosition);
                 break;
 
             case RTSCommandType.Patrol:
                 _inputMode = InputMode.Patrol;
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.Patrol);
                 break;
 
             case RTSCommandType.Attack:
                 _inputMode = InputMode.Attack;
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.Attack);
                 break;
 
             case RTSCommandType.Heal:
                 _inputMode = InputMode.Heal;
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.Heal);
                 break;
 
             case RTSCommandType.Repair:
                 _inputMode = InputMode.Repair;
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.Repair);
                 break;
 
             case RTSCommandType.BuildMenu:
@@ -379,37 +434,44 @@ public class PlayerUnitController : MonoBehaviour
                     _inputMode = InputMode.Build;
                     _pendingBuildingData = null;
                     _isBuildCommandPanelOpen = true;
+                    SetActiveUICommand(RTSCommandType.BuildMenu);
                 }
                 break;
 
             case RTSCommandType.BuildArchery:
                 SelectPendingBuilding(_archeryData);
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildArchery);
                 break;
 
             case RTSCommandType.BuildBarracks:
                 SelectPendingBuilding(_barracksData);
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildBarracks);
                 break;
 
             case RTSCommandType.BuildCastle:
                 SelectPendingBuilding(_castleData);
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildCastle);
                 break;
 
             case RTSCommandType.BuildHouse:
                 SelectPendingBuilding(_houseData);
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildHouse);
                 break;
 
             case RTSCommandType.BuildMonastery:
                 SelectPendingBuilding(_monasteryData);
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildMonastery);
                 break;
 
             case RTSCommandType.BuildTower:
                 SelectPendingBuilding(_towerData);
                 _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildTower);
                 break;
         }
 
@@ -437,22 +499,52 @@ public class PlayerUnitController : MonoBehaviour
         if (_pendingBuildingData == null)
         {
             if (_keyboard.aKey.wasPressedThisFrame)
+            {
                 SelectPendingBuilding(_archeryData);
+                _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildArchery);
+                RefreshHUD();
+            }
 
             if (_keyboard.bKey.wasPressedThisFrame)
+            {
                 SelectPendingBuilding(_barracksData);
+                _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildBarracks);
+                RefreshHUD();
+            }
 
             if (_keyboard.cKey.wasPressedThisFrame)
+            {
                 SelectPendingBuilding(_castleData);
+                _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildCastle);
+                RefreshHUD();
+            }
 
             if (_keyboard.hKey.wasPressedThisFrame)
+            {
                 SelectPendingBuilding(_houseData);
+                _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildHouse);
+                RefreshHUD();
+            }
 
             if (_keyboard.mKey.wasPressedThisFrame)
+            {
                 SelectPendingBuilding(_monasteryData);
+                _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildMonastery);
+                RefreshHUD();
+            }
 
             if (_keyboard.tKey.wasPressedThisFrame)
+            {
                 SelectPendingBuilding(_towerData);
+                _isBuildCommandPanelOpen = false;
+                SetActiveUICommand(RTSCommandType.BuildTower);
+                RefreshHUD();
+            }
         }
 
         if (_keyboard.escapeKey.wasPressedThisFrame)
@@ -468,16 +560,46 @@ public class PlayerUnitController : MonoBehaviour
             return;
 
         if (_keyboard.mKey.wasPressedThisFrame)
+        {
             _inputMode = InputMode.Move;
+            _isBuildCommandPanelOpen = false;
+            SetActiveUICommand(RTSCommandType.Move);
+            RefreshHUD();
+        }
 
         if (_keyboard.pKey.wasPressedThisFrame)
+        {
             _inputMode = InputMode.Patrol;
+            _isBuildCommandPanelOpen = false;
+            SetActiveUICommand(RTSCommandType.Patrol);
+            RefreshHUD();
+        }
 
         if (_keyboard.aKey.wasPressedThisFrame && _inputMode != InputMode.Build)
-            _inputMode = InputMode.Attack;
+        {
+            _isBuildCommandPanelOpen = false;
+
+            if (IsOnlySelectedType(UnitType.Monk))
+            {
+                _inputMode = InputMode.Heal;
+                SetActiveUICommand(RTSCommandType.Heal);
+            }
+            else
+            {
+                _inputMode = InputMode.Attack;
+                SetActiveUICommand(RTSCommandType.Attack);
+            }
+
+            RefreshHUD();
+        }
 
         if (_keyboard.rKey.wasPressedThisFrame)
+        {
             _inputMode = InputMode.Repair;
+            _isBuildCommandPanelOpen = false;
+            SetActiveUICommand(RTSCommandType.Repair);
+            RefreshHUD();
+        }
 
         if (_keyboard.bKey.wasPressedThisFrame)
         {
@@ -485,6 +607,9 @@ public class PlayerUnitController : MonoBehaviour
             {
                 _inputMode = InputMode.Build;
                 _pendingBuildingData = null;
+                _isBuildCommandPanelOpen = true;
+                SetActiveUICommand(RTSCommandType.BuildMenu);
+                RefreshHUD();
                 LogBuild("Рабочий готов к строительству, идет выбор постройки");
             }
         }
@@ -498,6 +623,10 @@ public class PlayerUnitController : MonoBehaviour
             }
 
             _inputMode = InputMode.Default;
+            _isBuildCommandPanelOpen = false;
+            SetActiveUICommand(null);
+            FlashUICommand(RTSCommandType.HoldPosition);
+            RefreshHUD();
         }
     }
 
@@ -511,6 +640,16 @@ public class PlayerUnitController : MonoBehaviour
 
         if (_mouse.leftButton.wasPressedThisFrame)
         {
+            if (IsPointerOverUI())
+            {
+                _isDraggingSelection = false;
+
+                if (_selectionBoxView != null)
+                    _selectionBoxView.Hide();
+
+                return;
+            }
+
             _selectionStartScreen = _mouse.position.ReadValue();
             _isDraggingSelection = true;
 
@@ -521,18 +660,24 @@ public class PlayerUnitController : MonoBehaviour
             }
         }
 
-        if (_mouse.leftButton.isPressed && _isDraggingSelection)
+        if (!_isDraggingSelection)
+            return;
+
+        if (_mouse.leftButton.isPressed)
         {
             if (_selectionBoxView != null)
                 _selectionBoxView.UpdateBox(_selectionStartScreen, _mouse.position.ReadValue());
         }
 
-        if (_mouse.leftButton.wasReleasedThisFrame && _isDraggingSelection)
+        if (_mouse.leftButton.wasReleasedThisFrame)
         {
             _isDraggingSelection = false;
 
             if (_selectionBoxView != null)
                 _selectionBoxView.Hide();
+
+            if (IsPointerOverUI())
+                return;
 
             var currentMousePosition = _mouse.position.ReadValue();
             var dragDistance = Vector2.Distance(_selectionStartScreen, currentMousePosition);
@@ -568,6 +713,7 @@ public class PlayerUnitController : MonoBehaviour
         }
 
         _inputMode = InputMode.Default;
+        SetActiveUICommand(null);
     }
     private IHealTarget GetHealTargetUnderCursor()
     {
@@ -617,6 +763,9 @@ public class PlayerUnitController : MonoBehaviour
         if (_mouse == null)
             return;
 
+        if (IsPointerOverUI())
+            return;
+
         if (_inputMode == InputMode.Build)
         {
             HandleBuildPlacement();
@@ -649,6 +798,7 @@ public class PlayerUnitController : MonoBehaviour
             case InputMode.Repair:
                 IssueRepairOrder();
                 break;
+
             case InputMode.Heal:
                 IssueHealOrder();
                 break;
@@ -779,6 +929,8 @@ public class PlayerUnitController : MonoBehaviour
     {
         _pendingBuildingData = null;
         _inputMode = InputMode.Default;
+        _isBuildCommandPanelOpen = false;
+        SetActiveUICommand(null);
 
         if (_buildingPlacementPreview != null)
             _buildingPlacementPreview.Hide();
@@ -822,6 +974,7 @@ public class PlayerUnitController : MonoBehaviour
         if (TryAssignWorkersToConstructionSiteUnderCursor())
         {
             _inputMode = InputMode.Default;
+            SetActiveUICommand(null);
             return;
         }
 
@@ -833,6 +986,7 @@ public class PlayerUnitController : MonoBehaviour
             var attackOrders = UnitOrderFactory.CreateAttackTargetOrders(_selectedUnits, attackTarget);
             ApplyOrders(attackOrders);
             _inputMode = InputMode.Default;
+            SetActiveUICommand(null);
             return;
         }
 
@@ -844,6 +998,7 @@ public class PlayerUnitController : MonoBehaviour
                 var repairOrders = UnitOrderFactory.CreateRepairOrders(_selectedUnits, repairTarget);
                 ApplyOrders(repairOrders);
                 _inputMode = InputMode.Default;
+                SetActiveUICommand(null);
                 return;
             }
         }
@@ -853,6 +1008,7 @@ public class PlayerUnitController : MonoBehaviour
             var moveOrders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, movePoint);
             ApplyOrders(moveOrders);
             _inputMode = InputMode.Default;
+            SetActiveUICommand(null);
         }
     }
 
@@ -927,6 +1083,7 @@ public class PlayerUnitController : MonoBehaviour
         var orders = UnitOrderFactory.CreateMoveOrders(_selectedUnits, point);
         ApplyOrders(orders);
         _inputMode = InputMode.Default;
+        SetActiveUICommand(null);
     }
 
     private void IssuePatrolOrder()
@@ -942,6 +1099,7 @@ public class PlayerUnitController : MonoBehaviour
         var orders = UnitOrderFactory.CreatePatrolOrders(_selectedUnits, point);
         ApplyOrders(orders);
         _inputMode = InputMode.Default;
+        SetActiveUICommand(null);
     }
 
     private void IssueAttackOrder()
@@ -966,6 +1124,7 @@ public class PlayerUnitController : MonoBehaviour
         var attackMoveOrders = UnitOrderFactory.CreateAttackMoveOrders(_selectedUnits, point);
         ApplyOrders(attackMoveOrders);
         _inputMode = InputMode.Default;
+        SetActiveUICommand(null);
     }
 
     private void IssueRepairOrder()
@@ -988,6 +1147,7 @@ public class PlayerUnitController : MonoBehaviour
         var orders = UnitOrderFactory.CreateRepairOrders(_selectedUnits, repairTarget);
         ApplyOrders(orders);
         _inputMode = InputMode.Default;
+        SetActiveUICommand(null);
     }
 
     private void HandleClickSelection(bool additiveSelection)
@@ -1007,6 +1167,9 @@ public class PlayerUnitController : MonoBehaviour
             ClearSelection();
 
         AddToSelection(clickedUnit);
+        _inputMode = InputMode.Default;
+        _isBuildCommandPanelOpen = false;
+        SetActiveUICommand(null);
         RefreshHUD();
     }
 
@@ -1049,6 +1212,9 @@ public class PlayerUnitController : MonoBehaviour
             AddToSelection(unit);
         }
 
+        _inputMode = InputMode.Default;
+        _isBuildCommandPanelOpen = false;
+        SetActiveUICommand(null);
         RefreshHUD();
     }
 
@@ -1092,7 +1258,7 @@ public class PlayerUnitController : MonoBehaviour
         if (hit == null)
             return null;
 
-        var attackTarget = hit.GetComponentInParent<MonoBehaviour>() as IAttackTarget;
+        var attackTarget = hit.GetComponentInParent<IAttackTarget>();
 
         if (attackTarget == null)
             return null;

@@ -35,6 +35,7 @@ public class RTSHUDView : MonoBehaviour
     private int _lastSelectionCount = -1;
     private Unit _lastSingleUnit;
 
+    private RTSCommandType? _activeCommandType;
     public Button[] ControlGroupButtons => _controlGroupButtons;
 
     private void Start()
@@ -80,7 +81,16 @@ public class RTSHUDView : MonoBehaviour
 
         _controlGroupCountTexts[index].text = count > 0 ? count.ToString() : string.Empty;
     }
+    public void RefreshDynamicSelectionStats(IReadOnlyList<Unit> units)
+    {
+        if (units == null)
+            return;
 
+        if (units.Count != 1)
+            return;
+
+        UpdateSingleUnitStats(units[0]);
+    }
     public void ShowSingleUnit(Unit unit)
     {
         if (_lastSelectionCount == 1 && _lastSingleUnit == unit)
@@ -110,8 +120,23 @@ public class RTSHUDView : MonoBehaviour
         if (_singleSelectionNameText != null)
             _singleSelectionNameText.text = unit.UnitType.ToString();
 
-        if (_singleSelectionStatsText != null)
-            _singleSelectionStatsText.text = $"HP: {Mathf.CeilToInt(unit.Context.CurrentHealth)}/{Mathf.CeilToInt(unit.Data.MaxHealth)}\nDamage: {unit.Data.AttackDamage}\nArmor: {unit.Data.Armor}";
+        if (_singleSelectionStatsText == null)
+            return;
+
+        var text = $"HP: {Mathf.CeilToInt(unit.Context.CurrentHealth)}/{Mathf.CeilToInt(unit.Data.MaxHealth)}";
+
+        if (unit.UnitType == UnitType.Monk)
+            text += $"\nMana: {Mathf.CeilToInt(unit.Context.CurrentMana)}/{Mathf.CeilToInt(unit.Data.MaxMana)}";
+
+        if (unit.CanAttack)
+            text += $"\nDamage: {unit.Data.AttackDamage}";
+
+        if (unit.UnitType == UnitType.Monk)
+            text += $"\nHeal: {unit.Data.AttackDamage}";
+
+        text += $"\nArmor: {unit.Data.Armor}";
+
+        _singleSelectionStatsText.text = text;
     }
     public void ShowUnitList(IReadOnlyList<Unit> units, System.Action<Unit> onClick)
     {
@@ -146,13 +171,6 @@ public class RTSHUDView : MonoBehaviour
 
     public void SetCommands(IReadOnlyList<RTSCommandDefinition> commands, System.Action<RTSCommandDefinition> onClick)
     {
-        var signature = CreateCommandSignature(commands);
-
-        if (_lastCommandSignature == signature)
-            return;
-
-        _lastCommandSignature = signature;
-
         ClearCommandButtons();
 
         for (int i = 0; i < commands.Count; i++)
@@ -164,10 +182,35 @@ public class RTSHUDView : MonoBehaviour
 
             var button = Instantiate(_commandButtonPrefab, _commandButtonRoot);
             button.Initialize(command, onClick);
+            button.SetActiveVisual(_activeCommandType.HasValue && _activeCommandType.Value == command.Type);
             _commandButtons.Add(button);
         }
     }
+    public void SetActiveCommand(RTSCommandType? commandType)
+    {
+        _activeCommandType = commandType;
 
+        for (int i = 0; i < _commandButtons.Count; i++)
+        {
+            if (_commandButtons[i] == null)
+                continue;
+
+            var active = commandType.HasValue && _commandButtons[i].CommandType == commandType.Value;
+            _commandButtons[i].SetActiveVisual(active);
+        }
+    }
+
+    public void FlashCommand(RTSCommandType commandType)
+    {
+        for (int i = 0; i < _commandButtons.Count; i++)
+        {
+            if (_commandButtons[i] == null)
+                continue;
+
+            if (_commandButtons[i].CommandType == commandType)
+                _commandButtons[i].Flash();
+        }
+    }
     private string CreateCommandSignature(IReadOnlyList<RTSCommandDefinition> commands)
     {
         if (commands == null || commands.Count == 0)
