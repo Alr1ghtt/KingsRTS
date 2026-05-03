@@ -266,23 +266,60 @@ public class TerrainTilemapRenderer : MonoBehaviour
             return false;
 
         var t = map.GetTile(x, y);
+
         return t != null && t.Type == TileType.Ramp;
     }
+
+    bool IsRampTopPart(MapData map, int x, int y)
+    {
+        if (!IsRamp(map, x, y))
+            return false;
+
+        if (!map.IsInside(x, y - 1))
+            return false;
+
+        var below = map.GetTile(x, y - 1);
+
+        return below != null && below.Type == TileType.Ramp;
+    }
+
     GrassTileType AdjustForRamp(MapData map, int x, int y, GrassTileType original)
     {
-        bool leftRamp = IsRamp(map, x - 1, y);
-        bool rightRamp = IsRamp(map, x + 1, y);
-        bool downRamp = IsRamp(map, x, y - 1);
-        bool upRamp = IsRamp(map, x, y + 1);
+        if (ShouldBeCenterNearRamp(map, x - 1, y, true))
+            return GrassTileType.Center;
 
-        // только мягкая коррекция снизу
-        if (downRamp)
-            return GrassTileType.Bottom;
-
-        if (upRamp)
-            return GrassTileType.Top;
+        if (ShouldBeCenterNearRamp(map, x + 1, y, false))
+            return GrassTileType.Center;
 
         return original;
+    }
+
+    bool ShouldBeCenterNearRamp(MapData map, int rampX, int rampY, bool rampIsLeftOfTile)
+    {
+        if (!IsRamp(map, rampX, rampY))
+            return false;
+
+        var ramp = map.GetTile(rampX, rampY);
+        bool topPart = IsRampTopPart(map, rampX, rampY);
+
+        if (ramp.RampDirection == RampDirection.East)
+        {
+            if (!topPart && rampIsLeftOfTile)
+                return true;
+
+            if (topPart && !rampIsLeftOfTile)
+                return true;
+        }
+        else
+        {
+            if (!topPart && !rampIsLeftOfTile)
+                return true;
+
+            if (topPart && rampIsLeftOfTile)
+                return true;
+        }
+
+        return false;
     }
     bool IsWater(MapData map, int x, int y)
     {

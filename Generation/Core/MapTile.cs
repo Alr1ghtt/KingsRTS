@@ -4,7 +4,7 @@ public class MapTile
 {
     public Vector2Int Position { get; }
 
-    public bool IsLand { get; }
+    public bool IsLand { get; set; }
 
     public int Height { get; set; }
 
@@ -16,11 +16,8 @@ public class MapTile
     {
         Position = position;
         IsLand = isLand;
-
-        Height = 0;
-
+        Height = isLand ? 1 : 0;
         Type = isLand ? TileType.Terrain : TileType.Empty;
-
         RampDirection = RampDirection.None;
     }
 }

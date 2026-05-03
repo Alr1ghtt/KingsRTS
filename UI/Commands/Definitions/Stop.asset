@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3cb8b82765d9d16448c865b4d083b486, type: 3}
   m_Name: Stop
   m_EditorClassIdentifier: Assembly-CSharp::RTSCommandDefinition
-  _type: 0
-  _displayName: 
-  _hotkey: 
-  _icon: {fileID: 0}
+  _type: 1
+  _displayName: Stop
+  _hotkey: S
+  _icon: {fileID: -2357659898952462716, guid: 843bc95f5555cf94aa085e51a59e36f4, type: 3}

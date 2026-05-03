@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+п»їusing System.Collections.Generic;
 using UnityEngine;
 
 public class RampGenerationStep : IMapGenerationStep
@@ -84,7 +84,7 @@ public class RampGenerationStep : IMapGenerationStep
             if (current == null)
                 continue;
 
-            // LEFT wall (ставим рампу ВНУТРИ впадины)
+            // LEFT wall (СЃС‚Р°РІРёРј СЂР°РјРїСѓ Р’РќРЈРўР Р РІРїР°РґРёРЅС‹)
             if (map.IsInside(x - 1, y))
             {
                 var left1 = map.GetTile(x - 1, y);
@@ -131,7 +131,7 @@ public class RampGenerationStep : IMapGenerationStep
 
         var mid = list[list.Count / 2];
 
-        // проверка дистанции от других рамп (2 клетки)
+        // РїСЂРѕРІРµСЂРєР° РґРёСЃС‚Р°РЅС†РёРё РѕС‚ РґСЂСѓРіРёС… СЂР°РјРї (2 РєР»РµС‚РєРё)
         foreach (var p in list)
         {
             if (Mathf.Abs(p.y - mid.y) >= 2)
@@ -142,7 +142,7 @@ public class RampGenerationStep : IMapGenerationStep
     }
     bool IsValidRampSpot(MapData map, int x, int y)
     {
-        // нельзя в углах
+        // РЅРµР»СЊР·СЏ РІ СѓРіР»Р°С…
         if (!map.IsInside(x, y + 1))
             return false;
 
@@ -152,11 +152,11 @@ public class RampGenerationStep : IMapGenerationStep
         if (top == null || center == null)
             return false;
 
-        // должен быть перепад вверх
+        // РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РїРµСЂРµРїР°Рґ РІРІРµСЂС…
         if (top.Height <= center.Height)
             return false;
 
-        // слева и справа должны быть "ровные" стены
+        // СЃР»РµРІР° Рё СЃРїСЂР°РІР° РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ "СЂРѕРІРЅС‹Рµ" СЃС‚РµРЅС‹
         var l = map.GetTile(x - 1, y);
         var r = map.GetTile(x + 1, y);
 
@@ -164,7 +164,7 @@ public class RampGenerationStep : IMapGenerationStep
             return false;
 
         if (l.Height == center.Height && r.Height == center.Height)
-            return false; // это не край
+            return false; // СЌС‚Рѕ РЅРµ РєСЂР°Р№
 
         return true;
     }

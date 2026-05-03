@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: RTS Command Library
   m_EditorClassIdentifier: Assembly-CSharp::RTSCommandLibrary
   _move: {fileID: 11400000, guid: 85341549fb449b94d8c100804aab4882, type: 2}
+  _stop: {fileID: 11400000, guid: 16e987fb1e1734a4bbaa2ed63f127ea5, type: 2}
   _holdPosition: {fileID: 11400000, guid: 5e422c76399e9984096cc19991bfef56, type: 2}
   _patrol: {fileID: 11400000, guid: 765934b6b5e9724489781b9ecf27bf1c, type: 2}
   _attack: {fileID: 11400000, guid: fb17045b51c68294aa30a7fe7f7a47b2, type: 2}

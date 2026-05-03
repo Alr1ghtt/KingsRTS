@@ -18,8 +18,13 @@ public class MapGenerationConfig : ScriptableObject
     [Header("Players")]
     [Range(1, 5)]
     [SerializeField] private int _playerCount = 2;
+    [SerializeField] private int _baseRadius = 8;
+    [SerializeField] private int _basePlacementMargin = 8;
+    [SerializeField] private int _baseConnectionWidth = 7;
 
-    [SerializeField] private int _baseRadius = 6;
+    [Header("Cleanup")]
+    [Range(0, 5)]
+    [SerializeField] private int _cleanupIterations = 2;
 
     public int WaterBorder => _waterBorder;
     public int Width => _width;
@@ -31,4 +36,7 @@ public class MapGenerationConfig : ScriptableObject
 
     public int PlayerCount => _playerCount;
     public int BaseRadius => _baseRadius;
+    public int BasePlacementMargin => _basePlacementMargin;
+    public int BaseConnectionWidth => _baseConnectionWidth;
+    public int CleanupIterations => _cleanupIterations;
 }

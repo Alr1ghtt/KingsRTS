@@ -8,13 +8,10 @@ public class MapGenerator : MonoBehaviour
     [Header("Terrain Strategy")]
     [SerializeField] private MonoBehaviour _terrainStrategyComponent;
 
-    private ITerrainGenerationStrategy _terrainStrategy;
-
     [SerializeField] private TilemapLayerSystem _layers;
 
+    private ITerrainGenerationStrategy _terrainStrategy;
     private MapGenerationPipeline _pipeline;
-
-    private StartPositionGenerator _startGenerator = new();
 
     public void Generate()
     {
@@ -35,17 +32,21 @@ public class MapGenerator : MonoBehaviour
 
         _pipeline.Execute(map, _config);
 
-        _startGenerator.Generate(map, _config);
-
         _renderer.Render(map);
     }
 
     private void BuildPipeline()
     {
+        bool isPlateau = _terrainStrategy is PlateauGenerator;
+        bool connectBases = !isPlateau;
+
         _pipeline = new MapGenerationPipeline();
 
         _pipeline.AddStep(new TerrainGenerationStep(_terrainStrategy));
+        _pipeline.AddStep(new TerrainCleanupStep());
+        _pipeline.AddStep(new StartPositionGenerationStep(connectBases, false, true));
         _pipeline.AddStep(new HeightGenerationStep());
+        _pipeline.AddStep(new StartPositionGenerationStep(false, true, false));
         _pipeline.AddStep(new CliffDetectionStep());
         _pipeline.AddStep(new RampGenerationStep());
     }
